@@ -1,0 +1,34 @@
+package database
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
+
+	"github.com/biho/onedrive/internal/config"
+)
+
+// ConnectRedis establishes a connection to Redis.
+func ConnectRedis(cfg *config.RedisConfig, log *zap.Logger) (*redis.Client, error) {
+	client := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+		Password: cfg.Password,
+		DB:       cfg.DB,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
+	log.Info("Connected to Redis",
+		zap.String("addr", fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)),
+	)
+
+	return client, nil
+}
