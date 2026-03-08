@@ -44,7 +44,7 @@ func main() {
 	db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`)
 
 	// Auto-migrate models
-	if err := db.AutoMigrate(&model.User{}, &model.RefreshToken{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.RefreshToken{}, &model.Item{}); err != nil {
 		logger.Fatal("Failed to run auto-migration", zap.Error(err))
 	}
 
@@ -76,15 +76,18 @@ func main() {
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
+	itemRepo := repository.NewItemRepository(db)
 
 	// Initialize services
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, cfg, logger)
+	itemService := service.NewItemService(itemRepo, logger)
 
 	// Initialize validator
 	v := validator.New()
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, v, cfg, logger)
+	itemHandler := handler.NewItemHandler(itemService, v, logger)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -101,7 +104,7 @@ func main() {
 	app.Use(middleware.SetupLogger(logger))
 
 	// Setup routes
-	router.Setup(app, authHandler, cfg.JWT.AccessSecret, b2Client)
+	router.Setup(app, authHandler, itemHandler, cfg.JWT.AccessSecret, b2Client)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

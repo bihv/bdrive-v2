@@ -3,6 +3,10 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  components: [
+    { path: '~/components', pathPrefix: false },
+  ],
+
   modules: [
     '@bg-dev/nuxt-naiveui',
     '@pinia/nuxt',
@@ -11,6 +15,8 @@ export default defineNuxtConfig({
   css: [
     '~/assets/css/main.css',
   ],
+
+  ssr: false,
 
   app: {
     head: {

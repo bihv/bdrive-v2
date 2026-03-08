@@ -12,7 +12,7 @@ import (
 )
 
 // Setup configures all application routes.
-func Setup(app *fiber.App, authHandler *handler.AuthHandler, accessSecret string, b2Client *storage.B2Client) {
+func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handler.ItemHandler, accessSecret string, b2Client *storage.B2Client) {
 	// API v1
 	api := app.Group("/api/v1")
 
@@ -50,4 +50,14 @@ func Setup(app *fiber.App, authHandler *handler.AuthHandler, accessSecret string
 	authProtected.Use(middleware.AuthMiddleware(accessSecret))
 	authProtected.Post("/logout", authHandler.Logout)
 	authProtected.Get("/me", authHandler.GetMe)
+
+	// Item routes (protected)
+	items := api.Group("/items")
+	items.Use(middleware.AuthMiddleware(accessSecret))
+	items.Get("/tree", itemHandler.GetFolderTree) // Must be before /:id
+	items.Post("/folder", itemHandler.CreateFolder)
+	items.Get("/", itemHandler.ListItems)
+	items.Get("/:id", itemHandler.GetItem)
+	items.Put("/:id", itemHandler.UpdateItem)
+	items.Delete("/:id", itemHandler.DeleteItem)
 }
