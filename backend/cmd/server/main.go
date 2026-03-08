@@ -16,6 +16,7 @@ import (
 	"github.com/biho/onedrive/internal/repository"
 	"github.com/biho/onedrive/internal/router"
 	"github.com/biho/onedrive/internal/service"
+	"github.com/biho/onedrive/pkg/storage"
 	"github.com/biho/onedrive/pkg/validator"
 )
 
@@ -56,6 +57,22 @@ func main() {
 	}
 	defer rdb.Close()
 
+	// Initialize B2 storage client (non-fatal if not configured)
+	var b2Client *storage.B2Client
+	if cfg.B2.KeyID != "" && cfg.B2.KeyID != "your_b2_application_key_id" {
+		b2Client, err = storage.NewB2Client(&cfg.B2, logger)
+		if err != nil {
+			logger.Warn("Failed to initialize B2 storage client", zap.Error(err))
+		} else {
+			logger.Info("B2 storage client initialized",
+				zap.String("bucket", cfg.B2.BucketName),
+				zap.String("region", cfg.B2.Region),
+			)
+		}
+	} else {
+		logger.Warn("B2 storage not configured — skipping initialization")
+	}
+
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
@@ -84,7 +101,7 @@ func main() {
 	app.Use(middleware.SetupLogger(logger))
 
 	// Setup routes
-	router.Setup(app, authHandler, cfg.JWT.AccessSecret)
+	router.Setup(app, authHandler, cfg.JWT.AccessSecret, b2Client)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

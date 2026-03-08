@@ -16,6 +16,7 @@ type Config struct {
 	CORS   CORSConfig
 	Argon2 Argon2Config
 	App    AppConfig
+	B2     B2Config
 }
 
 type ServerConfig struct {
@@ -62,6 +63,15 @@ type Argon2Config struct {
 type AppConfig struct {
 	Name string
 	Env  string
+}
+
+// B2Config holds Backblaze B2 storage configuration.
+type B2Config struct {
+	KeyID      string
+	AppKey     string
+	BucketName string
+	Region     string
+	Endpoint   string
 }
 
 // DSN returns the PostgreSQL connection string.
@@ -131,6 +141,13 @@ func Load() (*Config, error) {
 		App: AppConfig{
 			Name: viper.GetString("APP_NAME"),
 			Env:  viper.GetString("APP_ENV"),
+		},
+		B2: B2Config{
+			KeyID:      viper.GetString("B2_KEY_ID"),
+			AppKey:     viper.GetString("B2_APP_KEY"),
+			BucketName: viper.GetString("B2_BUCKET_NAME"),
+			Region:     viper.GetString("B2_REGION"),
+			Endpoint:   viper.GetString("B2_ENDPOINT"),
 		},
 	}
 
