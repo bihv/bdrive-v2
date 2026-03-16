@@ -80,20 +80,21 @@ func main() {
 
 	// Initialize services
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, cfg, logger)
-	itemService := service.NewItemService(itemRepo, logger)
+	itemService := service.NewItemService(itemRepo, b2Client, logger)
 
 	// Initialize validator
 	v := validator.New()
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, v, cfg, logger)
-	itemHandler := handler.NewItemHandler(itemService, v, logger)
+	itemHandler := handler.NewItemHandler(itemService, b2Client, v, logger)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:      cfg.App.Name,
 		Prefork:      cfg.Server.Prefork,
 		ErrorHandler: customErrorHandler(logger),
+		BodyLimit:    100 * 1024 * 1024, // 100MB max body size for file uploads
 	})
 
 	// Global middleware

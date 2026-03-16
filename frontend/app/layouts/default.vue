@@ -6,8 +6,13 @@
       :width="260"
       :collapsed-width="0"
       collapse-mode="width"
-      show-trigger="arrow-circle"
+      :show-trigger="isDesktop ? 'arrow-circle' : false"
+      :collapsed="sidebarCollapsed"
+      @collapse="sidebarCollapsed = true"
+      @expand="sidebarCollapsed = false"
       class="app-sidebar"
+      :class="{ 'is-mobile': !isDesktop }"
+      :native-scrollbar="false"
     >
       <div class="sidebar-header">
         <div class="sidebar-logo">
@@ -69,8 +74,29 @@
       </div>
     </n-layout-sider>
 
+    <!-- Mobile overlay -->
+    <div
+      v-if="!isDesktop && !sidebarCollapsed"
+      class="sidebar-overlay"
+      @click="sidebarCollapsed = true"
+    />
+
     <!-- Main Content -->
     <n-layout class="app-main">
+      <!-- Mobile header with menu button -->
+      <div class="mobile-header">
+        <n-button
+          quaternary
+          circle
+          size="medium"
+          @click="sidebarCollapsed = !sidebarCollapsed"
+        >
+          <template #icon>
+            <n-icon><Icon icon="mdi:menu" /></n-icon>
+          </template>
+        </n-button>
+      </div>
+
       <div class="main-content">
         <slot />
       </div>
@@ -81,6 +107,7 @@
       v-model:show-create="showCreateFolder"
       v-model:show-rename="showRenameFolder"
       v-model:show-delete="showDeleteFolder"
+      v-model:show-upload="showUploadFile"
       :target-item="targetItem"
       :parent-id="createParentId"
       @create="handleCreateFolder"
@@ -110,17 +137,35 @@ const {
 const showCreateFolder = ref(false)
 const showRenameFolder = ref(false)
 const showDeleteFolder = ref(false)
+const showUploadFile = ref(false)
 const targetItem = ref<{ id: string; name: string } | null>(null)
 const createParentId = ref<string | undefined>(undefined)
 
 const message = useMessage()
 
-// Load initial data
+// Responsive state
+const isDesktop = ref(true)
+const sidebarCollapsed = ref(false)
+
+const checkScreenSize = () => {
+  isDesktop.value = window.innerWidth > 768
+  if (!isDesktop.value) {
+    sidebarCollapsed.value = true
+  }
+}
+
 onMounted(async () => {
+  checkScreenSize()
+  window.addEventListener('resize', checkScreenSize)
+
   await Promise.all([
     loadItems(),
     loadFolderTree(),
   ])
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkScreenSize)
 })
 
 function onFolderSelect(node: FolderTreeNode) {
@@ -295,8 +340,97 @@ async function handleDeleteFolder() {
   background: var(--color-bg-primary) !important;
 }
 
+.mobile-header {
+  display: none;
+}
+
 .main-content {
   padding: 1.5rem 2rem;
   min-height: 100vh;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .app-sidebar {
+    position: fixed !important;
+    z-index: 1000;
+    height: 100vh !important;
+    transition: transform var(--transition-base);
+  }
+
+  .app-sidebar.is-mobile {
+    transform: translateX(-100%);
+  }
+
+  .app-sidebar.is-mobile:not(.n-layout-sider--collapsed) {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .main-content {
+    padding: 1rem;
+  }
+
+  .sidebar-header {
+    padding: 1rem;
+  }
+
+  .sidebar-logo {
+    justify-content: center;
+  }
+
+  .logo-text {
+    font-size: var(--font-size-lg);
+  }
+
+  .sidebar-content {
+    padding: 0.5rem 0;
+  }
+
+  .sidebar-section-title,
+  .tree-root-item {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .sidebar-footer {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .user-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+
+  .user-details {
+    align-items: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0.75rem;
+  }
+
+  .logo-icon {
+    font-size: 1.25rem;
+  }
+
+  .logo-text {
+    font-size: var(--font-size-base);
+  }
 }
 </style>

@@ -36,3 +36,48 @@ export interface FolderTreeNode {
     color: string | null
     children: FolderTreeNode[]
 }
+
+// Upload types
+export interface GetUploadURLRequest {
+    parent_id?: string
+    name: string
+    size: number
+    content_type: string
+    part_size?: number
+}
+
+export interface SimpleUploadResponse {
+    upload_url: string
+    storage_key: string
+    item_id: string
+    mime_type: string
+    size: number
+}
+
+export interface InitiateLargeUploadResponse {
+    upload_id: string
+    storage_key: string
+    item_id: string
+    part_size: number
+    total_parts: number
+}
+
+export interface CompleteLargeUploadRequest {
+    upload_id: string
+    storage_key: string
+    parts: CompletedPart[]
+}
+
+export interface CompletedPart {
+    part_number: number
+    etag: string
+}
+
+export interface CompleteLargeUploadResponse {
+    id: string
+    name: string
+    storage_key: string
+    size: number
+    mime_type: string
+    download_url: string | null
+}

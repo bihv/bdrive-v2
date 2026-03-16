@@ -173,3 +173,10 @@ func (r *ItemRepository) CascadeDelete(itemID, userID uuid.UUID) error {
 		return nil
 	})
 }
+
+// FindByStorageKey finds an item by its storage key and user ID.
+func (r *ItemRepository) FindByStorageKey(storageKey string, userID uuid.UUID) (*model.Item, error) {
+	var item model.Item
+	err := r.db.Where("storage_key = ? AND user_id = ?", storageKey, userID).First(&item).Error
+	return &item, err
+}

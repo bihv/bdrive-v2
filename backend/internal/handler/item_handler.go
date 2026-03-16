@@ -1,18 +1,22 @@
 package handler
 
 import (
+	"context"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/biho/onedrive/internal/dto"
 	"github.com/biho/onedrive/internal/service"
+	"github.com/biho/onedrive/pkg/storage"
 	"github.com/biho/onedrive/pkg/validator"
 )
 
 // ItemHandler handles HTTP requests for items (files and folders).
 type ItemHandler struct {
 	itemService *service.ItemService
+	b2Client    *storage.B2Client
 	validator   *validator.Validator
 	log         *zap.Logger
 }
@@ -20,11 +24,13 @@ type ItemHandler struct {
 // NewItemHandler creates a new ItemHandler.
 func NewItemHandler(
 	itemService *service.ItemService,
+	b2Client *storage.B2Client,
 	validator *validator.Validator,
 	log *zap.Logger,
 ) *ItemHandler {
 	return &ItemHandler{
 		itemService: itemService,
+		b2Client:    b2Client,
 		validator:   validator,
 		log:         log,
 	}
@@ -247,5 +253,243 @@ func (h *ItemHandler) GetFolderTree(c *fiber.Ctx) error {
 	return c.JSON(dto.SuccessResponse{
 		Success: true,
 		Data:    tree,
+	})
+}
+
+// UploadFile handles POST /api/v1/items/upload
+// Supports multipart form data upload
+func (h *ItemHandler) UploadFile(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	// Check if B2 client is configured
+	if h.b2Client == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
+			Success: false, Error: "Storage not configured", Code: "STORAGE_NOT_CONFIGURED",
+		})
+	}
+
+	// Parse multipart form
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "No file provided", Code: "NO_FILE",
+		})
+	}
+
+	// Get filename from form or use the uploaded filename
+	filename := c.FormValue("name", file.Filename)
+	if filename == "" {
+		filename = file.Filename
+	}
+
+	// Get parent_id if provided
+	var parentID *uuid.UUID
+	if pid := c.FormValue("parent_id"); pid != "" {
+		parsed, err := uuid.Parse(pid)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+				Success: false, Error: "Invalid parent_id", Code: "INVALID_PARAM",
+			})
+		}
+		parentID = &parsed
+	}
+
+	// Open the uploaded file
+	src, err := file.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: "Failed to read file", Code: "FILE_READ_ERROR",
+		})
+	}
+	defer src.Close()
+
+	// Get file size
+	fileSize := file.Size
+
+	// Call service to upload file
+	item, err := h.itemService.UploadFile(context.Background(), userID, parentID, filename, fileSize, src)
+	if err != nil {
+		status := fiber.StatusInternalServerError
+		code := "UPLOAD_ERROR"
+		switch err.Error() {
+		case "parent folder not found":
+			status = fiber.StatusNotFound
+			code = "PARENT_NOT_FOUND"
+		case "parent is not a folder":
+			status = fiber.StatusBadRequest
+			code = "PARENT_NOT_FOLDER"
+		case "a file with this name already exists":
+			status = fiber.StatusConflict
+			code = "NAME_EXISTS"
+		case "storage not configured":
+			status = fiber.StatusServiceUnavailable
+			code = "STORAGE_NOT_CONFIGURED"
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: code,
+		})
+	}
+
+	// Generate download URL (optional, expires in 1 hour)
+	var downloadURL *string
+	if item.StorageKey != nil {
+		url, err := h.b2Client.GetFileURL(context.Background(), *item.StorageKey, 3600)
+		if err == nil {
+			downloadURL = &url
+		}
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    service.ToUploadResponse(item, downloadURL),
+	})
+}
+
+// GetPreSignedUploadURL handles POST /api/v1/items/upload-url
+// Returns a pre-signed URL for direct upload to B2
+func (h *ItemHandler) GetPreSignedUploadURL(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	// Check if B2 client is configured
+	if h.b2Client == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
+			Success: false, Error: "Storage not configured", Code: "STORAGE_NOT_CONFIGURED",
+		})
+	}
+
+	var req dto.GetUploadURLRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid request body", Code: "INVALID_BODY",
+		})
+	}
+
+	if errs := h.validator.Validate(&req); errs != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false, "errors": errs, "code": "VALIDATION_ERROR",
+		})
+	}
+
+	result, err := h.itemService.GetPreSignedUploadURL(context.Background(), userID, &req)
+	if err != nil {
+		status := fiber.StatusInternalServerError
+		code := "UPLOAD_ERROR"
+		switch err.Error() {
+		case "parent folder not found":
+			status = fiber.StatusNotFound
+			code = "PARENT_NOT_FOUND"
+		case "parent is not a folder":
+			status = fiber.StatusBadRequest
+			code = "PARENT_NOT_FOLDER"
+		case "a file with this name already exists":
+			status = fiber.StatusConflict
+			code = "NAME_EXISTS"
+		case "storage not configured":
+			status = fiber.StatusServiceUnavailable
+			code = "STORAGE_NOT_CONFIGURED"
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: code,
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    result,
+	})
+}
+
+// GetUploadPartURL handles POST /api/v1/items/upload-part-url
+// Returns a pre-signed URL for uploading a part in multipart upload
+func (h *ItemHandler) GetUploadPartURL(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	if h.b2Client == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
+			Success: false, Error: "Storage not configured", Code: "STORAGE_NOT_CONFIGURED",
+		})
+	}
+
+	var req struct {
+		StorageKey string `json:"storage_key" validate:"required"`
+		UploadID   string `json:"upload_id" validate:"required"`
+		PartNumber int    `json:"part_number" validate:"required,min=1"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid request body", Code: "INVALID_BODY",
+		})
+	}
+
+	uploadURL, err := h.itemService.GetUploadPartURL(context.Background(), userID, req.StorageKey, req.UploadID, req.PartNumber)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: "UPLOAD_ERROR",
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data: fiber.Map{
+			"upload_url": uploadURL,
+		},
+	})
+}
+
+// CompleteLargeUpload handles POST /api/v1/items/complete-upload
+// Completes a multipart upload
+func (h *ItemHandler) CompleteLargeUpload(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	if h.b2Client == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
+			Success: false, Error: "Storage not configured", Code: "STORAGE_NOT_CONFIGURED",
+		})
+	}
+
+	var req dto.CompleteLargeUploadRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid request body", Code: "INVALID_BODY",
+		})
+	}
+
+	if errs := h.validator.Validate(&req); errs != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false, "errors": errs, "code": "VALIDATION_ERROR",
+		})
+	}
+
+	result, err := h.itemService.CompleteLargeUpload(context.Background(), userID, &req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: "UPLOAD_ERROR",
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    result,
 	})
 }

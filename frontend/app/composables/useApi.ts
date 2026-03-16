@@ -3,11 +3,48 @@ import type { ApiResponse, ApiError } from '~/types/auth'
 export function useApi() {
     const config = useRuntimeConfig()
     const authStore = useAuthStore()
+    const router = useRouter()
     const baseURL = config.public.apiBase
+
+    let isRefreshing = false
+    let refreshPromise: Promise<boolean> | null = null
+
+    async function refreshToken(): Promise<boolean> {
+        if (isRefreshing) {
+            return refreshPromise || Promise.resolve(false)
+        }
+
+        isRefreshing = true
+        refreshPromise = (async () => {
+            try {
+                const response = await $fetch<ApiResponse<{ access_token: string }>>(`${baseURL}/api/v1/auth/refresh`, {
+                    method: 'POST',
+                    credentials: 'include', // Send cookies (refresh token)
+                })
+
+                if (response.success && response.data?.access_token) {
+                    authStore.accessToken = response.data.access_token
+                    return true
+                }
+                return false
+            } catch (error) {
+                console.error('Token refresh failed:', error)
+                authStore.clearAuth()
+                router.push('/auth/login')
+                return false
+            } finally {
+                isRefreshing = false
+                refreshPromise = null
+            }
+        })()
+
+        return refreshPromise
+    }
 
     async function apiFetch<T>(
         endpoint: string,
         options: RequestInit = {},
+        retryCount = 0,
     ): Promise<T> {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -19,14 +56,28 @@ export function useApi() {
             headers['Authorization'] = `Bearer ${authStore.accessToken}`
         }
 
-        const response = await $fetch<ApiResponse<T>>(`${baseURL}${endpoint}`, {
-            ...options,
-            method: options.method as any,
-            headers,
-            credentials: 'include', // Send cookies (refresh token)
-        })
+        try {
+            const response = await $fetch<ApiResponse<T>>(`${baseURL}${endpoint}`, {
+                ...options,
+                method: options.method as any,
+                headers,
+                credentials: 'include', // Send cookies (refresh token)
+            })
 
-        return response.data
+            return response.data
+        } catch (error: any) {
+            // Check if 401 Unauthorized and we haven't retried yet
+            if (error?.response?.status === 401 && retryCount === 0) {
+                const refreshed = await refreshToken()
+                if (refreshed) {
+                    // Retry the original request with new token
+                    return apiFetch<T>(endpoint, options, retryCount + 1)
+                }
+            }
+
+            // Re-throw the error for handling by caller
+            throw error
+        }
     }
 
     async function post<T>(endpoint: string, body: unknown): Promise<T> {
@@ -42,9 +93,40 @@ export function useApi() {
         })
     }
 
+    // Upload file to pre-signed URL using fetch API
+    async function uploadToURL(url: string, file: File | Blob, contentType: string, onProgress?: (progress: number) => void): Promise<string | null> {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && onProgress) {
+                    onProgress((e.loaded / e.total) * 100)
+                }
+            })
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(null)
+                } else {
+                    reject(new Error(`Upload failed with status ${xhr.status}`))
+                }
+            })
+
+            xhr.addEventListener('error', () => {
+                reject(new Error('Upload failed'))
+            })
+
+            xhr.open('PUT', url)
+            xhr.setRequestHeader('Content-Type', contentType)
+            xhr.send(file)
+        })
+    }
+
     return {
         apiFetch,
         post,
         get,
+        uploadToURL,
+        refreshToken,
     }
 }

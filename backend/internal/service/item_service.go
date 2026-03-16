@@ -1,9 +1,13 @@
 package service
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -11,18 +15,30 @@ import (
 	"github.com/biho/onedrive/internal/dto"
 	"github.com/biho/onedrive/internal/model"
 	"github.com/biho/onedrive/internal/repository"
+	"github.com/biho/onedrive/pkg/storage"
+)
+
+const (
+	// DefaultURLExpiry is the default expiry time for pre-signed URLs (1 hour)
+	DefaultURLExpiry = 3600
+	// LargeFileThreshold is the threshold for large file upload (5MB)
+	LargeFileThreshold = int64(5 * 1024 * 1024)
+	// DefaultPartSize is the default part size for large file upload (5MB)
+	DefaultPartSize = int64(5 * 1024 * 1024)
 )
 
 // ItemService handles business logic for items.
 type ItemService struct {
 	itemRepo *repository.ItemRepository
+	b2Client *storage.B2Client
 	log      *zap.Logger
 }
 
 // NewItemService creates a new ItemService.
-func NewItemService(itemRepo *repository.ItemRepository, log *zap.Logger) *ItemService {
+func NewItemService(itemRepo *repository.ItemRepository, b2Client *storage.B2Client, log *zap.Logger) *ItemService {
 	return &ItemService{
 		itemRepo: itemRepo,
+		b2Client: b2Client,
 		log:      log,
 	}
 }
@@ -71,6 +87,98 @@ func (s *ItemService) CreateFolder(userID uuid.UUID, req *dto.CreateFolderReques
 	if err := s.itemRepo.Create(item); err != nil {
 		s.log.Error("Failed to create folder", zap.Error(err))
 		return nil, fmt.Errorf("failed to create folder")
+	}
+
+	return item, nil
+}
+
+// UploadFile handles file upload to B2 storage.
+// It automatically chooses between simple upload (<=5MB) and multipart upload (>5MB).
+func (s *ItemService) UploadFile(ctx context.Context, userID uuid.UUID, parentID *uuid.UUID, filename string, fileSize int64, fileContent io.Reader) (*model.Item, error) {
+	// Validate parent folder if provided
+	var parentPath string
+	if parentID != nil {
+		parent, err := s.itemRepo.FindByID(*parentID, userID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, fmt.Errorf("parent folder not found")
+			}
+			return nil, fmt.Errorf("internal error")
+		}
+		if !parent.IsFolder {
+			return nil, fmt.Errorf("parent is not a folder")
+		}
+		parentPath = parent.Path
+	}
+
+	// Check for duplicate name
+	exists, err := s.itemRepo.NameExistsInParent(userID, parentID, filename, nil)
+	if err != nil {
+		s.log.Error("Failed to check name existence", zap.Error(err))
+		return nil, fmt.Errorf("internal error")
+	}
+	if exists {
+		return nil, fmt.Errorf("a file with this name already exists")
+	}
+
+	// Determine MIME type
+	mimeType := storage.GetMimeType(filename)
+
+	// Generate storage key
+	storageKey := storage.GenerateStorageKey(userID.String(), parentPath, filename)
+
+	// Read file content into memory for upload
+	content, err := io.ReadAll(fileContent)
+	if err != nil {
+		s.log.Error("Failed to read file content", zap.Error(err))
+		return nil, fmt.Errorf("failed to read file content")
+	}
+
+	// Upload to B2
+	if s.b2Client == nil {
+		s.log.Error("B2 client not configured")
+		return nil, fmt.Errorf("storage not configured")
+	}
+
+	_, err = s.b2Client.UploadFile(ctx, storageKey, content, mimeType)
+	if err != nil {
+		s.log.Error("Failed to upload file to B2", zap.Error(err))
+		return nil, fmt.Errorf("failed to upload file")
+	}
+
+	// Calculate depth
+	depth := 0
+	if parentID != nil {
+		parent, _ := s.itemRepo.FindByID(*parentID, userID)
+		if parent != nil {
+			depth = parent.Depth + 1
+		}
+	}
+
+	// Build full path
+	fullPath := parentPath + "/" + filename
+	if parentPath == "" {
+		fullPath = "/" + filename
+	}
+
+	// Create item in database
+	item := &model.Item{
+		UserID:     userID,
+		ParentID:   parentID,
+		Name:       filename,
+		IsFolder:   false,
+		Depth:      depth,
+		Path:       fullPath,
+		MimeType:   &mimeType,
+		Size:       fileSize,
+		StorageKey: &storageKey,
+	}
+
+	if err := s.itemRepo.Create(item); err != nil {
+		s.log.Error("Failed to create item", zap.Error(err))
+		// Try to delete the uploaded file from B2
+		_ = s.b2Client.DeleteFile(ctx, storageKey)
+		return nil, fmt.Errorf("failed to save file metadata")
 	}
 
 	return item, nil
@@ -286,4 +394,288 @@ func ToItemResponseList(items []model.Item) []dto.ItemResponse {
 // sanitizeName removes path separators from names.
 func sanitizeName(name string) string {
 	return strings.ReplaceAll(name, "/", "_")
+}
+
+// ToUploadResponse converts a model.Item to dto.UploadResponse with download URL.
+func ToUploadResponse(item *model.Item, downloadURL *string) *dto.UploadResponse {
+	var parentID *string
+	if item.ParentID != nil {
+		pid := item.ParentID.String()
+		parentID = &pid
+	}
+
+	mimeType := ""
+	if item.MimeType != nil {
+		mimeType = *item.MimeType
+	}
+
+	storageKey := ""
+	if item.StorageKey != nil {
+		storageKey = *item.StorageKey
+	}
+
+	return &dto.UploadResponse{
+		ID:          item.ID.String(),
+		Name:        item.Name,
+		ParentID:    parentID,
+		Size:        item.Size,
+		MimeType:    mimeType,
+		Path:        item.Path,
+		StorageKey:  storageKey,
+		DownloadURL: downloadURL,
+		CreatedAt:   item.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:   item.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+}
+
+// GetPreSignedUploadURL generates a pre-signed URL for direct upload to B2.
+// For files <=5MB, returns a simple upload URL.
+// For files >5MB, returns multipart upload initiation info.
+func (s *ItemService) GetPreSignedUploadURL(ctx context.Context, userID uuid.UUID, req *dto.GetUploadURLRequest) (interface{}, error) {
+	if s.b2Client == nil {
+		return nil, fmt.Errorf("storage not configured")
+	}
+
+	// Validate parent folder if provided
+	var parentPath string
+	if req.ParentID != nil {
+		parent, err := s.itemRepo.FindByID(*req.ParentID, userID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, fmt.Errorf("parent folder not found")
+			}
+			return nil, fmt.Errorf("internal error")
+		}
+		if !parent.IsFolder {
+			return nil, fmt.Errorf("parent is not a folder")
+		}
+		parentPath = parent.Path
+	}
+
+	// Check for duplicate name
+	exists, err := s.itemRepo.NameExistsInParent(userID, req.ParentID, req.Name, nil)
+	if err != nil {
+		s.log.Error("Failed to check name existence", zap.Error(err))
+		return nil, fmt.Errorf("internal error")
+	}
+	if exists {
+		return nil, fmt.Errorf("a file with this name already exists")
+	}
+
+	// Generate storage key
+	storageKey := storage.GenerateStorageKey(userID.String(), parentPath, req.Name)
+
+	// Determine if this is a large file upload
+	if req.Size > LargeFileThreshold {
+		return s.initiateLargeUpload(ctx, userID, req, storageKey)
+	}
+
+	return s.initiateSimpleUpload(ctx, userID, req, storageKey)
+}
+
+// initiateSimpleUpload creates a pre-signed URL for simple upload (<=5MB)
+func (s *ItemService) initiateSimpleUpload(ctx context.Context, userID uuid.UUID, req *dto.GetUploadURLRequest, storageKey string) (*dto.SimpleUploadResponse, error) {
+	// Generate pre-signed upload URL
+	uploadURL, err := s.b2Client.GetUploadURL(ctx, storageKey, req.ContentType, DefaultURLExpiry)
+	if err != nil {
+		s.log.Error("Failed to generate pre-signed upload URL", zap.Error(err))
+		return nil, fmt.Errorf("failed to generate upload URL")
+	}
+
+	// Create placeholder item in database (status: pending upload)
+	depth := 0
+	if req.ParentID != nil {
+		parent, _ := s.itemRepo.FindByID(*req.ParentID, userID)
+		if parent != nil {
+			depth = parent.Depth + 1
+		}
+	}
+
+	parentPath := ""
+	if req.ParentID != nil {
+		parent, _ := s.itemRepo.FindByID(*req.ParentID, userID)
+		if parent != nil {
+			parentPath = parent.Path
+		}
+	}
+
+	fullPath := parentPath + "/" + req.Name
+	if parentPath == "" {
+		fullPath = "/" + req.Name
+	}
+
+	item := &model.Item{
+		UserID:     userID,
+		ParentID:   req.ParentID,
+		Name:       req.Name,
+		IsFolder:   false,
+		Depth:      depth,
+		Path:       fullPath,
+		MimeType:   &req.ContentType,
+		Size:       req.Size,
+		StorageKey: &storageKey,
+	}
+
+	if err := s.itemRepo.Create(item); err != nil {
+		s.log.Error("Failed to create item", zap.Error(err))
+		return nil, fmt.Errorf("failed to create file record")
+	}
+
+	return &dto.SimpleUploadResponse{
+		UploadURL:  uploadURL,
+		StorageKey: storageKey,
+		ItemID:     item.ID.String(),
+		MimeType:   req.ContentType,
+		Size:       req.Size,
+	}, nil
+}
+
+// initiateLargeUpload initiates a multipart upload for large files (>5MB)
+func (s *ItemService) initiateLargeUpload(ctx context.Context, userID uuid.UUID, req *dto.GetUploadURLRequest, storageKey string) (*dto.InitiateLargeUploadResponse, error) {
+	// Determine part size (use provided or default)
+	partSize := req.PartSize
+	if partSize <= 0 {
+		partSize = DefaultPartSize
+	}
+
+	// Calculate total parts
+	totalParts := int((req.Size + partSize - 1) / partSize)
+
+	// Create multipart upload on B2
+	result, err := s.b2Client.CreateMultipartUpload(ctx, storageKey, req.ContentType)
+	if err != nil {
+		s.log.Error("Failed to create multipart upload", zap.Error(err))
+		return nil, fmt.Errorf("failed to initiate large upload")
+	}
+
+	// Create placeholder item in database
+	depth := 0
+	if req.ParentID != nil {
+		parent, _ := s.itemRepo.FindByID(*req.ParentID, userID)
+		if parent != nil {
+			depth = parent.Depth + 1
+		}
+	}
+
+	parentPath := ""
+	if req.ParentID != nil {
+		parent, _ := s.itemRepo.FindByID(*req.ParentID, userID)
+		if parent != nil {
+			parentPath = parent.Path
+		}
+	}
+
+	fullPath := parentPath + "/" + req.Name
+	if parentPath == "" {
+		fullPath = "/" + req.Name
+	}
+
+	item := &model.Item{
+		UserID:     userID,
+		ParentID:   req.ParentID,
+		Name:       req.Name,
+		IsFolder:   false,
+		Depth:      depth,
+		Path:       fullPath,
+		MimeType:   &req.ContentType,
+		Size:       req.Size,
+		StorageKey: &storageKey,
+	}
+
+	if err := s.itemRepo.Create(item); err != nil {
+		s.log.Error("Failed to create item", zap.Error(err))
+		// Abort the multipart upload
+		_ = s.b2Client.AbortMultipartUpload(ctx, storageKey, result.UploadID)
+		return nil, fmt.Errorf("failed to create file record")
+	}
+
+	return &dto.InitiateLargeUploadResponse{
+		UploadID:   result.UploadID,
+		StorageKey: storageKey,
+		ItemID:     item.ID.String(),
+		PartSize:   partSize,
+		TotalParts: totalParts,
+	}, nil
+}
+
+// CompleteLargeUpload completes a multipart upload
+func (s *ItemService) CompleteLargeUpload(ctx context.Context, userID uuid.UUID, req *dto.CompleteLargeUploadRequest) (*dto.CompleteLargeUploadResponse, error) {
+	if s.b2Client == nil {
+		return nil, fmt.Errorf("storage not configured")
+	}
+
+	var parts []types.CompletedPart
+
+	// Check if frontend provided valid ETags (not just placeholders)
+	hasValidETags := false
+	for _, part := range req.Parts {
+		if part.ETag != "" && !strings.HasPrefix(part.ETag, "part-") {
+			hasValidETags = true
+			break
+		}
+	}
+
+	if hasValidETags {
+		// Use provided ETags
+		parts = make([]types.CompletedPart, len(req.Parts))
+		for i, part := range req.Parts {
+			parts[i] = types.CompletedPart{
+				ETag:       &part.ETag,
+				PartNumber: aws.Int32(int32(part.PartNumber)),
+			}
+		}
+	} else {
+		// Fetch parts from B2 to get actual ETags
+		var err error
+		parts, err = s.b2Client.ListParts(ctx, req.StorageKey, req.UploadID)
+		if err != nil {
+			s.log.Error("Failed to list parts", zap.Error(err))
+			return nil, fmt.Errorf("failed to complete upload: could not retrieve parts")
+		}
+	}
+
+	// Complete the multipart upload
+	err := s.b2Client.CompleteMultipartUpload(ctx, req.StorageKey, req.UploadID, parts)
+	if err != nil {
+		s.log.Error("Failed to complete multipart upload", zap.Error(err))
+		// Try to abort
+		_ = s.b2Client.AbortMultipartUpload(ctx, req.StorageKey, req.UploadID)
+		return nil, fmt.Errorf("failed to complete upload")
+	}
+
+	// Find and update the item
+	item, err := s.itemRepo.FindByStorageKey(req.StorageKey, userID)
+	if err != nil {
+		return nil, fmt.Errorf("file record not found")
+	}
+
+	// Generate download URL
+	var downloadURL *string
+	url, err := s.b2Client.GetFileURL(ctx, req.StorageKey, DefaultURLExpiry)
+	if err == nil {
+		downloadURL = &url
+	}
+
+	mimeType := ""
+	if item.MimeType != nil {
+		mimeType = *item.MimeType
+	}
+
+	return &dto.CompleteLargeUploadResponse{
+		ID:          item.ID.String(),
+		Name:        item.Name,
+		StorageKey:  req.StorageKey,
+		Size:        item.Size,
+		MimeType:    mimeType,
+		DownloadURL: downloadURL,
+	}, nil
+}
+
+// GetUploadPartURL gets a pre-signed URL for uploading a part in multipart upload
+func (s *ItemService) GetUploadPartURL(ctx context.Context, userID uuid.UUID, storageKey string, uploadID string, partNumber int) (string, error) {
+	if s.b2Client == nil {
+		return "", fmt.Errorf("storage not configured")
+	}
+
+	return s.b2Client.GetUploadPartURL(ctx, storageKey, uploadID, partNumber, DefaultURLExpiry)
 }

@@ -17,6 +17,16 @@
         <n-button
           type="primary"
           size="small"
+          @click="showUploadFile = true"
+        >
+          <template #icon>
+            <n-icon><Icon icon="mdi:upload" /></n-icon>
+          </template>
+          Tải lên
+        </n-button>
+        <n-button
+          type="primary"
+          size="small"
           @click="showCreateFolder = true"
         >
           <template #icon>
@@ -87,11 +97,13 @@
       v-model:show-create="showCreateFolder"
       v-model:show-rename="showRenameDialog"
       v-model:show-delete="showDeleteDialog"
+      v-model:show-upload="showUploadFile"
       :target-item="contextTarget"
       :parent-id="currentFolderId || undefined"
       @create="handleCreate"
       @rename="handleRename"
       @delete="handleDelete"
+      @upload="handleUpload"
     />
   </div>
 </template>
@@ -115,6 +127,7 @@ const {
   updateItem,
   deleteItem,
   navigateToFolder,
+  uploadFile,
   items,
   currentFolderId,
   breadcrumbs,
@@ -126,6 +139,7 @@ const message = useMessage()
 const showCreateFolder = ref(false)
 const showRenameDialog = ref(false)
 const showDeleteDialog = ref(false)
+const showUploadFile = ref(false)
 const showContextMenu = ref(false)
 const contextX = ref(0)
 const contextY = ref(0)
@@ -210,11 +224,23 @@ async function handleDelete() {
     message.error(e?.data?.error || 'Không thể xóa')
   }
 }
+
+async function handleUpload(file: File, parentId?: string, onProgress?: (progress: number) => void) {
+  try {
+    await uploadFile(file, parentId || undefined, onProgress)
+    message.success('Đã tải lên file')
+    showUploadFile.value = false
+  } catch (e: any) {
+    console.error('Upload error:', e)
+    message.error(e?.data?.error || 'Không thể tải lên file')
+  }
+}
 </script>
 
 <style scoped>
 .file-manager {
-  max-width: 1200px;
+  width: 100%;
+  min-width: 0;
 }
 
 .fm-header {
@@ -223,6 +249,11 @@ async function handleDelete() {
   justify-content: space-between;
   margin-bottom: 1.5rem;
   gap: 1rem;
+}
+
+.fm-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .fm-empty {
@@ -277,5 +308,78 @@ async function handleDelete() {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   margin-top: 0.25rem;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .fm-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .fm-breadcrumb {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fm-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .fm-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .fm-item {
+    padding: 1rem 0.5rem;
+  }
+
+  .fm-item-icon {
+    font-size: 0.8em;
+  }
+
+  .fm-item-icon :deep(.n-icon) {
+    font-size: 32px !important;
+  }
+
+  .fm-item-name {
+    font-size: var(--font-size-xs);
+  }
+
+  .fm-empty {
+    min-height: 300px;
+  }
+}
+
+@media (max-width: 480px) {
+  .fm-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .fm-item {
+    padding: 0.75rem 0.25rem;
+  }
+
+  .fm-item-icon :deep(.n-icon) {
+    font-size: 28px !important;
+  }
+
+  .fm-item-name {
+    font-size: 0.7rem;
+  }
+
+  .fm-item-meta {
+    font-size: 0.65rem;
+  }
+
+  .fm-actions :deep(.n-button) {
+    font-size: var(--font-size-xs);
+    padding: 0 0.75rem;
+  }
 }
 </style>
