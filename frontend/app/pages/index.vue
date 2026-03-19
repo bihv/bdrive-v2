@@ -7,9 +7,10 @@
           <n-breadcrumb-item
             v-for="(crumb, i) in breadcrumbs"
             :key="i"
+            :clickable="i < breadcrumbs.length - 1"
             @click="onBreadcrumbClick(i)"
           >
-            {{ crumb }}
+            {{ crumb.name }}
           </n-breadcrumb-item>
         </n-breadcrumb>
       </div>
@@ -187,9 +188,11 @@ function onContextSelect(key: string) {
 }
 
 function onBreadcrumbClick(index: number) {
-  if (index === 0) {
-    navigateToFolder(null, '/')
-  }
+  const crumb = breadcrumbs.value[index]
+  if (!crumb) return
+  // Don't navigate if clicking the last (current) item
+  if (index === breadcrumbs.value.length - 1) return
+  navigateToFolder(crumb.id, crumb.path)
 }
 
 async function handleCreate(name: string, parentId?: string) {

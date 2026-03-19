@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import type { Item, FolderTreeNode } from '~/types/folder'
+import type { Item, FolderTreeNode, BreadcrumbItem } from '~/types/folder'
 
 export const useFolderStore = defineStore('folder', {
     state: () => ({
@@ -14,9 +14,27 @@ export const useFolderStore = defineStore('folder', {
     getters: {
         currentItems: (state) => state.items,
         currentFolder: (state): string | null => state.currentFolderId,
-        breadcrumbs: (state): string[] => {
-            if (state.currentPath === '/') return ['Root']
-            return ['Root', ...state.currentPath.split('/').filter(Boolean)]
+        breadcrumbs(state): BreadcrumbItem[] {
+            if (state.folderTree.length === 0) return []
+            const result: BreadcrumbItem[] = [{ id: null, name: 'Root', path: '/' }]
+            if (!state.currentFolderId) return result
+
+            const findPath = (nodes: FolderTreeNode[], targetId: string): FolderTreeNode[] | null => {
+                for (const node of nodes) {
+                    if (node.id === targetId) return [node]
+                    const sub = findPath(node.children || [], targetId)
+                    if (sub) return [node, ...sub]
+                }
+                return null
+            }
+
+            const trail = findPath(state.folderTree, state.currentFolderId)
+            if (trail) {
+                for (const node of trail) {
+                    result.push({ id: node.id, name: node.name, path: node.path })
+                }
+            }
+            return result
         },
     },
 
@@ -60,6 +78,18 @@ export const useFolderStore = defineStore('folder', {
 
         setTreeLoading(v: boolean) {
             this.treeLoading = v
+        },
+
+        findFolderById(folderId: string): FolderTreeNode | null {
+            const search = (nodes: FolderTreeNode[]): FolderTreeNode | null => {
+                for (const node of nodes) {
+                    if (node.id === folderId) return node
+                    const found = search(node.children || [])
+                    if (found) return found
+                }
+                return null
+            }
+            return search(this.folderTree)
         },
     },
 })

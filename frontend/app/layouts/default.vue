@@ -134,6 +134,23 @@ const {
   treeLoading,
 } = useFolder()
 
+const route = useRoute()
+const store = useFolderStore()
+
+// Watch for URL folder param changes (browser back/forward)
+watch(() => route.query.folder, (newFolderId) => {
+  const folderId = newFolderId as string | undefined
+
+  if (!folderId) {
+    store.setCurrentFolder(null, '/')
+    loadItems(null)
+    return
+  }
+
+  store.setCurrentFolder(folderId, '/')
+  loadItems(folderId)
+})
+
 const showCreateFolder = ref(false)
 const showRenameFolder = ref(false)
 const showDeleteFolder = ref(false)
@@ -158,10 +175,17 @@ onMounted(async () => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
 
-  await Promise.all([
-    loadItems(),
-    loadFolderTree(),
-  ])
+  // Load tree first
+  await loadFolderTree()
+
+  // Load items - root or folder from URL
+  const folderId = route.query.folder as string | undefined
+  if (folderId) {
+    store.setCurrentFolder(folderId, '/')
+    await loadItems(folderId)
+  } else {
+    await loadItems()
+  }
 })
 
 onUnmounted(() => {

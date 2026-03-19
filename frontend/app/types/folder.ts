@@ -37,6 +37,13 @@ export interface FolderTreeNode {
     children: FolderTreeNode[]
 }
 
+// Breadcrumb item for navigation
+export interface BreadcrumbItem {
+    id: string | null
+    name: string
+    path: string
+}
+
 // Upload types
 export interface GetUploadURLRequest {
     parent_id?: string

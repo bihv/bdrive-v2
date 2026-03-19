@@ -75,9 +75,12 @@ export function useFolder() {
         }
     }
 
-    function navigateToFolder(folderId: string | null, path: string = '/') {
+    async function navigateToFolder(folderId: string | null, path: string = '/') {
+        const router = useRouter()
+        const query = folderId ? { folder: folderId } : {}
+        await router.push({ path: '/', query })
         store.setCurrentFolder(folderId, path)
-        loadItems(folderId)
+        await loadItems(folderId)
     }
 
     // Upload file directly to B2 using pre-signed URLs
