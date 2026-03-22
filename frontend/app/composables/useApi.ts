@@ -126,6 +126,10 @@ export function useApi() {
         return apiFetch<Item[]>('/api/v1/trash')
     }
 
+    async function getItem(id: string): Promise<Item> {
+        return apiFetch<Item>('/api/v1/items/' + id)
+    }
+
     async function restoreItem(id: string, body?: RestoreItemRequest): Promise<Item> {
         return apiFetch<Item>('/api/v1/trash/' + id + '/restore', {
             method: 'POST',
@@ -146,6 +150,7 @@ export function useApi() {
         uploadToURL,
         refreshToken,
         getTrash,
+        getItem,
         restoreItem,
         permanentDeleteItem,
     }

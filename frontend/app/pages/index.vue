@@ -146,6 +146,12 @@
       @upload="handleUpload"
     />
 
+    <!-- File Properties Modal -->
+    <FileProperties
+      v-model:show="showPropertiesModal"
+      :item-id="propertiesItemId"
+    />
+
     <!-- Restore Folder Dialog -->
     <n-modal
       v-model:show="showRestoreDialog"
@@ -209,6 +215,7 @@ import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
 import type { Item, RestoreItemRequest, FolderTreeNode } from '~/types/folder'
 import { useFolderStore } from '~/stores/folder'
+import FileProperties from '~/components/folders/FileProperties.vue'
 
 definePageMeta({
   layout: 'default',
@@ -257,6 +264,8 @@ const showContextMenu = ref(false)
 const contextX = ref(0)
 const contextY = ref(0)
 const contextTarget = ref<{ id: string; name: string } | null>(null)
+const showPropertiesModal = ref(false)
+const propertiesItemId = ref<string | null>(null)
 
 // Trash-specific state
 const showTrashContextMenu = ref(false)
@@ -266,6 +275,8 @@ const selectedRestoreFolder = ref<string | null>(null)
 const newItemName = ref('')
 
 const contextMenuOptions = computed(() => [
+  { label: 'Thông tin', key: 'properties' },
+  { type: 'divider', key: 'd0' },
   { label: 'Đổi tên', key: 'rename' },
   { type: 'divider', key: 'd1' },
   { label: 'Xóa', key: 'delete' },
@@ -318,6 +329,10 @@ function onItemContext(e: MouseEvent, item: Item) {
 
 function onContextSelect(key: string) {
   showContextMenu.value = false
+  if (key === 'properties') {
+    propertiesItemId.value = contextTarget.value?.id || null
+    showPropertiesModal.value = true
+  }
   if (key === 'rename') showRenameDialog.value = true
   if (key === 'delete') showDeleteDialog.value = true
 }
