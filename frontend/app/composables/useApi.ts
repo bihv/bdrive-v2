@@ -1,4 +1,5 @@
 import type { ApiResponse, ApiError } from '~/types/auth'
+import type { Item, RestoreItemRequest } from '~/types/folder'
 
 export function useApi() {
     const config = useRuntimeConfig()
@@ -93,7 +94,6 @@ export function useApi() {
         })
     }
 
-    // Upload file to pre-signed URL using fetch API
     async function uploadToURL(url: string, file: File | Blob, contentType: string, onProgress?: (progress: number) => void): Promise<string | null> {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest()
@@ -122,11 +122,31 @@ export function useApi() {
         })
     }
 
+    async function getTrash(): Promise<Item[]> {
+        return apiFetch<Item[]>('/api/v1/trash')
+    }
+
+    async function restoreItem(id: string, body?: RestoreItemRequest): Promise<Item> {
+        return apiFetch<Item>('/api/v1/trash/' + id + '/restore', {
+            method: 'POST',
+            body: JSON.stringify(body || {}),
+        })
+    }
+
+    async function permanentDeleteItem(id: string): Promise<void> {
+        return apiFetch<void>('/api/v1/trash/' + id, {
+            method: 'DELETE',
+        })
+    }
+
     return {
         apiFetch,
         post,
         get,
         uploadToURL,
         refreshToken,
+        getTrash,
+        restoreItem,
+        permanentDeleteItem,
     }
 }

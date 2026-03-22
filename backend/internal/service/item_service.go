@@ -679,3 +679,194 @@ func (s *ItemService) GetUploadPartURL(ctx context.Context, userID uuid.UUID, st
 
 	return s.b2Client.GetUploadPartURL(ctx, storageKey, uploadID, partNumber, DefaultURLExpiry)
 }
+
+// TrashError represents a trash-specific error.
+type TrashError struct {
+	Code    string
+	Message string
+}
+
+func (e *TrashError) Error() string {
+	return e.Message
+}
+
+// ListTrash returns all soft-deleted items for a user.
+func (s *ItemService) ListTrash(userID uuid.UUID) ([]dto.TrashItemResponse, error) {
+	items, err := s.itemRepo.FindTrash(userID)
+	if err != nil {
+		s.log.Error("Failed to list trash", zap.Error(err))
+		return nil, fmt.Errorf("internal error")
+	}
+
+	responses := make([]dto.TrashItemResponse, 0, len(items))
+	for _, item := range items {
+		var deletedAt string
+		if item.DeletedAt.Valid {
+			deletedAt = item.DeletedAt.Time.Format("2006-01-02T15:04:05Z")
+		}
+		resp := ToItemResponse(&item, 0)
+		responses = append(responses, dto.TrashItemResponse{
+			ItemResponse: *resp,
+			DeletedAt:    deletedAt,
+		})
+	}
+
+	return responses, nil
+}
+
+// RestoreItem restores an item from trash.
+func (s *ItemService) RestoreItem(id, userID uuid.UUID, req *dto.RestoreItemRequest) (*dto.ItemResponse, error) {
+	s.log.Info("RestoreItem called",
+		zap.String("itemID", id.String()),
+		zap.String("userID", userID.String()),
+		zap.Any("req", req),
+	)
+
+	item, err := s.itemRepo.FindByIDUnscoped(id, userID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("item not found")
+		}
+		return nil, fmt.Errorf("internal error")
+	}
+
+	if item.DeletedAt.Valid == false {
+		return nil, fmt.Errorf("item is not in trash")
+	}
+
+	var targetParentID *uuid.UUID
+	var targetPath string
+	var targetDepth int
+
+	if req != nil && req.TargetParentID != nil {
+		pid, err := uuid.Parse(*req.TargetParentID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid parent ID")
+		}
+		targetParentID = &pid
+
+		parent, err := s.itemRepo.FindByID(pid, userID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, &TrashError{Code: "PARENT_DELETED", Message: "target parent not found"}
+			}
+			return nil, fmt.Errorf("internal error")
+		}
+		if !parent.IsFolder {
+			return nil, fmt.Errorf("target parent is not a folder")
+		}
+		if parent.DeletedAt.Valid {
+			return nil, &TrashError{Code: "PARENT_DELETED", Message: "target parent is in trash"}
+		}
+		targetPath = parent.Path + "/" + item.Name
+		targetDepth = parent.Depth + 1
+	} else {
+		if item.ParentID != nil {
+			targetParentID = item.ParentID
+			parent, err := s.itemRepo.FindByID(*item.ParentID, userID)
+			if err != nil {
+				if err == gorm.ErrRecordNotFound {
+					return nil, &TrashError{Code: "PARENT_DELETED", Message: "original parent not found"}
+				}
+				return nil, fmt.Errorf("internal error")
+			}
+			if parent.DeletedAt.Valid {
+				return nil, &TrashError{Code: "PARENT_DELETED", Message: "original parent is in trash"}
+			}
+			targetPath = parent.Path + "/" + item.Name
+			targetDepth = parent.Depth + 1
+		} else {
+			targetPath = "/" + item.Name
+			targetDepth = 0
+		}
+	}
+
+	newName := item.Name
+	if req != nil && req.NewName != nil && *req.NewName != "" {
+		newName = *req.NewName
+		targetPath = getPathPrefix(targetPath) + "/" + newName
+	}
+
+	exists, err := s.itemRepo.NameExistsInParent(userID, targetParentID, newName, &id)
+	if err != nil {
+		return nil, fmt.Errorf("internal error")
+	}
+	s.log.Info("NameExistsInParent check",
+		zap.String("itemID", id.String()),
+		zap.Any("parentID", targetParentID),
+		zap.String("name", newName),
+		zap.Bool("exists", exists),
+	)
+	if exists {
+		return nil, &TrashError{Code: "NAME_CONFLICT", Message: "an item with this name already exists"}
+	}
+
+	err = s.itemRepo.RestoreInTransaction(id, userID, targetParentID, newName, targetDepth, targetPath)
+	if err != nil {
+		s.log.Error("Failed to restore item", zap.Error(err))
+		return nil, fmt.Errorf("failed to restore item")
+	}
+
+	restored, err := s.itemRepo.FindByID(id, userID)
+	if err != nil {
+		return nil, fmt.Errorf("internal error")
+	}
+
+	return ToItemResponse(restored, 0), nil
+}
+
+// PermanentDeleteItem permanently deletes an item from trash (DB + B2).
+func (s *ItemService) PermanentDeleteItem(id, userID uuid.UUID) error {
+	item, err := s.itemRepo.FindByIDUnscoped(id, userID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("item not found")
+		}
+		s.log.Error("Failed to find item for permanent delete", zap.Error(err))
+		return fmt.Errorf("internal error")
+	}
+	if item.DeletedAt.Valid == false {
+		return fmt.Errorf("item is not in trash")
+	}
+
+	keys, err := s.itemRepo.GetStorageKeysForPermanentDelete(id, userID)
+	if err != nil {
+		s.log.Error("Failed to get storage keys", zap.Error(err))
+		return fmt.Errorf("internal error")
+	}
+
+	ctx := context.Background()
+	var b2Errors []string
+
+	for _, key := range keys {
+		if err := s.b2Client.DeleteFile(ctx, key); err != nil {
+			s.log.Warn("Failed to delete B2 file", zap.String("key", key), zap.Error(err))
+			b2Errors = append(b2Errors, key)
+		}
+	}
+
+	if len(keys) > 0 && len(b2Errors) == len(keys) {
+		return fmt.Errorf("storage service unavailable")
+	}
+
+	if len(b2Errors) > 0 {
+		s.log.Warn("Some B2 files failed to delete",
+			zap.Int("total", len(keys)),
+			zap.Int("failed", len(b2Errors)))
+	}
+
+	if err := s.itemRepo.PermanentDelete(id, userID); err != nil {
+		s.log.Error("Failed to permanent delete from DB", zap.Error(err))
+		return fmt.Errorf("failed to delete item")
+	}
+
+	return nil
+}
+
+func getPathPrefix(fullPath string) string {
+	lastSlash := strings.LastIndex(fullPath, "/")
+	if lastSlash <= 0 {
+		return ""
+	}
+	return fullPath[:lastSlash]
+}

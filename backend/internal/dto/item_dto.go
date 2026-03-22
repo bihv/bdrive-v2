@@ -122,3 +122,15 @@ type CompleteLargeUploadResponse struct {
 	MimeType    string  `json:"mime_type"`
 	DownloadURL *string `json:"download_url"`
 }
+
+// RestoreItemRequest is the request body for restoring an item from trash.
+type RestoreItemRequest struct {
+	TargetParentID *string `json:"targetParentID"`
+	NewName        *string `json:"newName"`
+}
+
+// TrashItemResponse is the API response for a trash item.
+type TrashItemResponse struct {
+	ItemResponse
+	DeletedAt string `json:"deleted_at"`
+}

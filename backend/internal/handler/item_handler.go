@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -491,5 +492,111 @@ func (h *ItemHandler) CompleteLargeUpload(c *fiber.Ctx) error {
 	return c.JSON(dto.SuccessResponse{
 		Success: true,
 		Data:    result,
+	})
+}
+
+// ListTrash handles GET /api/v1/trash
+func (h *ItemHandler) ListTrash(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	items, err := h.itemService.ListTrash(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: "Failed to list trash", Code: "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    items,
+	})
+}
+
+// RestoreItem handles POST /api/v1/trash/:id/restore
+func (h *ItemHandler) RestoreItem(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid item ID", Code: "INVALID_PARAM",
+		})
+	}
+
+	var req dto.RestoreItemRequest
+	if body := c.Body(); len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+				Success: false, Error: "Invalid request body", Code: "INVALID_PARAM",
+			})
+		}
+	}
+
+	item, err := h.itemService.RestoreItem(id, userID, &req)
+	if err != nil {
+		if trashErr, ok := err.(*service.TrashError); ok {
+			if trashErr.Code == "PARENT_DELETED" || trashErr.Code == "NAME_CONFLICT" {
+				return c.Status(fiber.StatusConflict).JSON(dto.ErrorResponse{
+					Success: false, Error: trashErr.Message, Code: trashErr.Code,
+				})
+			}
+		}
+		status := fiber.StatusInternalServerError
+		if err.Error() == "item not found" {
+			status = fiber.StatusNotFound
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    item,
+	})
+}
+
+// PermanentDeleteItem handles DELETE /api/v1/trash/:id
+func (h *ItemHandler) PermanentDeleteItem(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid item ID", Code: "INVALID_PARAM",
+		})
+	}
+
+	if err := h.itemService.PermanentDeleteItem(id, userID); err != nil {
+		status := fiber.StatusInternalServerError
+		if err.Error() == "item not found" {
+			status = fiber.StatusNotFound
+		}
+		if err.Error() == "storage service unavailable" {
+			status = fiber.StatusServiceUnavailable
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    fiber.Map{"message": "Item permanently deleted"},
 	})
 }

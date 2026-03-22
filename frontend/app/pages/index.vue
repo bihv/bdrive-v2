@@ -3,51 +3,63 @@
     <!-- Header -->
     <div class="fm-header">
       <div class="fm-breadcrumb">
-        <n-breadcrumb>
-          <n-breadcrumb-item
-            v-for="(crumb, i) in breadcrumbs"
-            :key="i"
-            :clickable="i < breadcrumbs.length - 1"
-            @click="onBreadcrumbClick(i)"
-          >
-            {{ crumb.name }}
-          </n-breadcrumb-item>
-        </n-breadcrumb>
+        <template v-if="isTrashView">
+          <span class="trash-title">Thùng rác</span>
+        </template>
+        <template v-else>
+          <n-breadcrumb>
+            <n-breadcrumb-item
+              v-for="(crumb, i) in breadcrumbs"
+              :key="i"
+              :clickable="i < breadcrumbs.length - 1"
+              @click="onBreadcrumbClick(i)"
+            >
+              {{ crumb.name }}
+            </n-breadcrumb-item>
+          </n-breadcrumb>
+        </template>
       </div>
       <div class="fm-actions">
-        <n-button
-          type="primary"
-          size="small"
-          @click="showUploadFile = true"
-        >
-          <template #icon>
-            <n-icon><Icon icon="mdi:upload" /></n-icon>
-          </template>
-          Tải lên
-        </n-button>
-        <n-button
-          type="primary"
-          size="small"
-          @click="showCreateFolder = true"
-        >
-          <template #icon>
-            <n-icon><Icon icon="mdi:folder-plus" /></n-icon>
-          </template>
-          Tạo thư mục
-        </n-button>
+        <template v-if="isTrashView">
+          <n-button
+            v-if="trashItems.length > 0"
+            type="warning"
+            size="small"
+            @click="handleEmptyTrash"
+          >
+            <template #icon>
+              <n-icon><Icon icon="mdi:delete-sweep" /></n-icon>
+            </template>
+            Dọn thùng rác
+          </n-button>
+        </template>
+        <template v-else>
+          <n-button type="primary" size="small" @click="showUploadFile = true">
+            <template #icon>
+              <n-icon><Icon icon="mdi:upload" /></n-icon>
+            </template>
+            Tải lên
+          </n-button>
+          <n-button type="primary" size="small" @click="showCreateFolder = true">
+            <template #icon>
+              <n-icon><Icon icon="mdi:folder-plus" /></n-icon>
+            </template>
+            Tạo thư mục
+          </n-button>
+        </template>
       </div>
     </div>
 
     <!-- Items Grid/List -->
-    <n-spin :show="loading">
-      <div v-if="items.length === 0 && !loading" class="fm-empty">
-        <n-empty description="Thư mục trống">
+    <n-spin :show="displayLoading">
+      <div v-if="displayItems.length === 0 && !displayLoading" class="fm-empty">
+        <n-empty :description="isTrashView ? 'Thùng rác trống' : 'Thư mục trống'">
           <template #icon>
             <n-icon size="48" :depth="3">
-              <Icon icon="mdi:folder-open-outline" />
+              <Icon :icon="isTrashView ? 'mdi:delete-outline' : 'mdi:folder-open-outline'" />
             </n-icon>
           </template>
-          <template #extra>
+          <template v-if="!isTrashView" #extra>
             <n-button size="small" @click="showCreateFolder = true">
               Tạo thư mục mới
             </n-button>
@@ -57,25 +69,40 @@
 
       <div v-else class="fm-grid">
         <div
-          v-for="item in items"
+          v-for="item in displayItems"
           :key="item.id"
           class="fm-item glass-card"
-          :class="{ 'is-folder': item.is_folder }"
-          @dblclick="onItemDblClick(item)"
-          @contextmenu.prevent="onItemContext($event, item)"
+          :class="{ 'is-folder': item.is_folder, 'is-trash': isTrashView }"
+          @dblclick="!isTrashView && onItemDblClick(item)"
+          @contextmenu.prevent="isTrashView ? onTrashContext($event, item) : onItemContext($event, item)"
         >
           <div class="fm-item-icon">
-            <n-icon
-              size="36"
-              :style="item.color ? { color: item.color } : {}"
-            >
-              <Icon :icon="getItemIcon(item)" />
+            <n-icon size="36" :style="item.color ? { color: item.color } : {}">
+              <Icon :icon="isTrashView ? 'mdi:delete-outline' : getItemIcon(item)" />
             </n-icon>
           </div>
           <div class="fm-item-name">{{ item.name }}</div>
           <div class="fm-item-meta">
-            <span v-if="item.is_folder">{{ item.child_count }} mục</span>
-            <span v-else>{{ formatSize(item.size) }}</span>
+            <template v-if="isTrashView">
+              {{ formatDeletedDate(item.deleted_at) }}
+            </template>
+            <template v-else>
+              <span v-if="item.is_folder">{{ item.child_count }} mục</span>
+              <span v-else>{{ formatSize(item.size) }}</span>
+            </template>
+          </div>
+          <div v-if="isTrashView" class="fm-trash-actions">
+            <n-button size="tiny" @click.stop="handleRestore(item)">
+              <template #icon>
+                <n-icon><Icon icon="mdi:restore" /></n-icon>
+              </template>
+              Khôi phục
+            </n-button>
+            <n-button size="tiny" type="error" @click.stop="handlePermanentDelete(item)">
+              <template #icon>
+                <n-icon><Icon icon="mdi:delete-forever" /></n-icon>
+              </template>
+            </n-button>
           </div>
         </div>
       </div>
@@ -93,6 +120,18 @@
       @clickoutside="showContextMenu = false"
     />
 
+    <!-- Context menu for trash items -->
+    <n-dropdown
+      :show="showTrashContextMenu"
+      :x="contextX"
+      :y="contextY"
+      trigger="manual"
+      placement="bottom-start"
+      :options="trashContextOptions"
+      @select="onTrashContextSelect"
+      @clickoutside="showTrashContextMenu = false"
+    />
+
     <!-- Modals -->
     <FolderActions
       v-model:show-create="showCreateFolder"
@@ -106,12 +145,70 @@
       @delete="handleDelete"
       @upload="handleUpload"
     />
+
+    <!-- Restore Folder Dialog -->
+    <n-modal
+      v-model:show="showRestoreDialog"
+      preset="card"
+      title="Chọn thư mục khôi phục"
+      style="width: 400px"
+    >
+      <div class="restore-folder-list">
+        <div
+          class="restore-folder-item"
+          :class="{ active: selectedRestoreFolder === null }"
+          @click="selectedRestoreFolder = null"
+        >
+          <n-icon><Icon icon="mdi:home-outline" /></n-icon>
+          <span>Thư mục gốc</span>
+        </div>
+        <div
+          v-for="folder in folderTree"
+          :key="folder.id"
+          class="restore-folder-item"
+          :class="{ active: selectedRestoreFolder === folder.id }"
+          :style="{ paddingLeft: (folder.depth * 20 + 24) + 'px' }"
+          @click="selectedRestoreFolder = folder.id"
+        >
+          <n-icon><Icon icon="mdi:folder" /></n-icon>
+          <span>{{ folder.name }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showRestoreDialog = false">Hủy</n-button>
+          <n-button type="primary" @click="handleRestoreWithFolder(selectedRestoreFolder)">
+            Khôi phục
+          </n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <!-- Rename Dialog -->
+    <n-modal
+      v-model:show="showRenameDialog"
+      preset="card"
+      title="Đổi tên"
+      style="width: 400px"
+    >
+      <n-input v-model:value="newItemName" placeholder="Tên mới" />
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showRenameDialog = false">Hủy</n-button>
+          <n-button type="primary" @click="handleRestoreWithRename">
+            Khôi phục
+          </n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import type { Item } from '~/types/folder'
+import { storeToRefs } from 'pinia'
+import type { Item, RestoreItemRequest, FolderTreeNode } from '~/types/folder'
+import { useFolderStore } from '~/stores/folder'
 
 definePageMeta({
   layout: 'default',
@@ -129,13 +226,28 @@ const {
   deleteItem,
   navigateToFolder,
   uploadFile,
+  loadFolderTree,
   items,
   currentFolderId,
   breadcrumbs,
   loading,
+  folderTree,
 } = useFolder()
 
+const folderStore = useFolderStore()
+const { isTrashView, trashItems, trashLoading } = storeToRefs(folderStore)
+
+const api = useApi()
 const message = useMessage()
+const dialog = useDialog()
+
+const displayItems = computed(() => {
+  return isTrashView.value ? trashItems.value : items.value
+})
+
+const displayLoading = computed(() => {
+  return isTrashView.value ? trashLoading.value : loading.value
+})
 
 const showCreateFolder = ref(false)
 const showRenameDialog = ref(false)
@@ -146,10 +258,23 @@ const contextX = ref(0)
 const contextY = ref(0)
 const contextTarget = ref<{ id: string; name: string } | null>(null)
 
+// Trash-specific state
+const showTrashContextMenu = ref(false)
+const trashContextTarget = ref<Item | null>(null)
+const showRestoreDialog = ref(false)
+const selectedRestoreFolder = ref<string | null>(null)
+const newItemName = ref('')
+
 const contextMenuOptions = computed(() => [
   { label: 'Đổi tên', key: 'rename' },
   { type: 'divider', key: 'd1' },
   { label: 'Xóa', key: 'delete' },
+])
+
+const trashContextOptions = computed(() => [
+  { label: 'Khôi phục', key: 'restore' },
+  { type: 'divider', key: 'd1' },
+  { label: 'Xóa vĩnh viễn', key: 'permanent-delete' },
 ])
 
 function getItemIcon(item: Item): string {
@@ -166,6 +291,16 @@ function formatSize(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+function formatDeletedDate(dateStr?: string): string {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
 }
 
 function onItemDblClick(item: Item) {
@@ -187,10 +322,23 @@ function onContextSelect(key: string) {
   if (key === 'delete') showDeleteDialog.value = true
 }
 
+function onTrashContext(e: MouseEvent, item: Item) {
+  contextX.value = e.clientX
+  contextY.value = e.clientY
+  trashContextTarget.value = item
+  showTrashContextMenu.value = true
+}
+
+function onTrashContextSelect(key: string) {
+  showTrashContextMenu.value = false
+  if (!trashContextTarget.value) return
+  if (key === 'restore') handleRestore(trashContextTarget.value)
+  if (key === 'permanent-delete') handlePermanentDelete(trashContextTarget.value)
+}
+
 function onBreadcrumbClick(index: number) {
   const crumb = breadcrumbs.value[index]
   if (!crumb) return
-  // Don't navigate if clicking the last (current) item
   if (index === breadcrumbs.value.length - 1) return
   navigateToFolder(crumb.id, crumb.path)
 }
@@ -238,6 +386,135 @@ async function handleUpload(file: File, parentId?: string, onProgress?: (progres
     message.error(e?.data?.error || 'Không thể tải lên file')
   }
 }
+
+// Trash handlers
+async function loadTrash() {
+  folderStore.setTrashLoading(true)
+  try {
+    const data = await api.getTrash()
+    folderStore.setTrashItems(data)
+  } catch (e: any) {
+    message.error(e?.data?.error || 'Không thể tải thùng rác')
+  } finally {
+    folderStore.setTrashLoading(false)
+  }
+}
+
+async function handleRestore(item: Item) {
+  try {
+    await api.restoreItem(item.id)
+    message.success('Đã khôi phục')
+    folderStore.removeTrashItem(item.id)
+  } catch (e: any) {
+    const code = e?.data?.code
+    if (code === 'PARENT_DELETED') {
+      restoreTarget.value = { id: item.id, name: item.name }
+      showRestoreDialog.value = true
+    } else if (code === 'NAME_CONFLICT') {
+      restoreTarget.value = { id: item.id, name: item.name }
+      newItemName.value = item.name
+      showRenameDialog.value = true
+    } else {
+      message.error(e?.data?.error || 'Không thể khôi phục')
+    }
+  }
+}
+
+const restoreTarget = ref<{ id: string; name: string } | null>(null)
+
+async function handleRestoreWithFolder(folderId: string | null) {
+  if (!restoreTarget.value) return
+  try {
+    const body: RestoreItemRequest = { targetParentID: folderId || undefined }
+    await api.restoreItem(restoreTarget.value.id, body)
+    message.success('Đã khôi phục')
+    folderStore.removeTrashItem(restoreTarget.value.id)
+    showRestoreDialog.value = false
+    restoreTarget.value = null
+  } catch (e: any) {
+    if (e?.data?.code === 'NAME_CONFLICT' && restoreTarget.value) {
+      newItemName.value = restoreTarget.value.name
+      showRenameDialog.value = true
+      showRestoreDialog.value = false
+    } else {
+      message.error(e?.data?.error || 'Không thể khôi phục')
+    }
+  }
+}
+
+async function handleRestoreWithRename() {
+  if (!restoreTarget.value || !newItemName.value.trim()) return
+  try {
+    const body: RestoreItemRequest = { newName: newItemName.value.trim() }
+    await api.restoreItem(restoreTarget.value.id, body)
+    message.success('Đã khôi phục')
+    folderStore.removeTrashItem(restoreTarget.value.id)
+    showRenameDialog.value = false
+    restoreTarget.value = null
+  } catch (e: any) {
+    message.error(e?.data?.error || 'Không thể khôi phục')
+  }
+}
+
+async function handlePermanentDelete(item: Item) {
+  dialog.warning({
+    title: 'Xóa vĩnh viễn',
+    content: `Bạn có chắc muốn xóa vĩnh viễn "${item.name}"? Hành động này không thể hoàn tác.`,
+    positiveText: 'Xóa vĩnh viễn',
+    negativeText: 'Hủy',
+    onPositiveClick: async () => {
+      try {
+        await api.permanentDeleteItem(item.id)
+        message.success('Đã xóa vĩnh viễn')
+        folderStore.removeTrashItem(item.id)
+      } catch (e: any) {
+        message.error(e?.data?.error || 'Không thể xóa vĩnh viễn')
+      }
+    },
+  })
+}
+
+async function handleEmptyTrash() {
+  dialog.warning({
+    title: 'Dọn thùng rác',
+    content: `Bạn có chắc muốn xóa vĩnh viễn tất cả ${trashItems.value.length} item trong thùng rác?`,
+    positiveText: 'Xóa tất cả',
+    negativeText: 'Hủy',
+    onPositiveClick: async () => {
+      let successCount = 0
+      let failCount = 0
+      const failedIds: string[] = []
+      
+      for (const item of trashItems.value) {
+        try {
+          await api.permanentDeleteItem(item.id)
+          successCount++
+        } catch (e) {
+          failCount++
+          failedIds.push(item.name)
+        }
+      }
+      
+      // Reload trash list to get accurate state
+      await loadTrash()
+      
+      if (failCount === 0) {
+        message.success('Đã dọn thùng rác')
+      } else if (successCount === 0) {
+        message.error(`Không thể xóa ${failCount} item`)
+      } else {
+        message.warning(`Đã xóa ${successCount} item, ${failCount} item thất bại`)
+      }
+    },
+  })
+}
+
+// Watch trash view
+watch(isTrashView, async (isTrash) => {
+  if (isTrash) {
+    await loadTrash()
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -311,6 +588,48 @@ async function handleUpload(file: File, parentId?: string, onProgress?: (progres
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   margin-top: 0.25rem;
+}
+
+.trash-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.fm-trash-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.fm-item.is-trash:hover .fm-trash-actions {
+  opacity: 1;
+}
+
+.restore-folder-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.restore-folder-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all var(--transition-base);
+}
+
+.restore-folder-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.restore-folder-item.active {
+  background: rgba(64, 158, 255, 0.15);
+  color: var(--color-primary);
 }
 
 /* Mobile Responsive */

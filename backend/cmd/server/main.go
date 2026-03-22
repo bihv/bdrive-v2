@@ -76,7 +76,7 @@ func main() {
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
-	itemRepo := repository.NewItemRepository(db)
+	itemRepo := repository.NewItemRepository(db, logger)
 
 	// Initialize services
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, cfg, logger)

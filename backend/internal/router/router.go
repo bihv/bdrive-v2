@@ -64,4 +64,11 @@ func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handle
 	items.Get("/:id", itemHandler.GetItem)
 	items.Put("/:id", itemHandler.UpdateItem)
 	items.Delete("/:id", itemHandler.DeleteItem)
+
+	// Trash routes (protected)
+	trash := api.Group("/trash")
+	trash.Use(middleware.AuthMiddleware(accessSecret))
+	trash.Get("/", itemHandler.ListTrash)
+	trash.Post("/:id/restore", itemHandler.RestoreItem)
+	trash.Delete("/:id", itemHandler.PermanentDeleteItem)
 }

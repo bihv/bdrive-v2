@@ -9,6 +9,9 @@ export const useFolderStore = defineStore('folder', {
         currentPath: '/' as string,
         loading: false,
         treeLoading: false,
+        trashItems: [] as Item[],
+        isTrashView: false as boolean,
+        trashLoading: false as boolean,
     }),
 
     getters: {
@@ -90,6 +93,29 @@ export const useFolderStore = defineStore('folder', {
                 return null
             }
             return search(this.folderTree)
+        },
+
+        setTrashItems(items: Item[]) {
+            this.trashItems = items
+        },
+
+        setTrashView(v: boolean) {
+            this.isTrashView = v
+        },
+
+        setTrashLoading(v: boolean) {
+            this.trashLoading = v
+        },
+
+        removeTrashItem(id: string) {
+            this.trashItems = this.trashItems.filter(i => i.id !== id)
+        },
+
+        updateTrashItem(updated: Item) {
+            const index = this.trashItems.findIndex(i => i.id === updated.id)
+            if (index !== -1) {
+                this.trashItems[index] = updated
+            }
         },
     },
 })

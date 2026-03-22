@@ -40,7 +40,7 @@
         <!-- Root item -->
         <div
           class="tree-root-item"
-          :class="{ active: !currentFolderId }"
+          :class="{ active: !currentFolderId && !isTrashView }"
           @click="navigateToFolder(null, '/')"
         >
           <n-icon size="18"><Icon icon="mdi:home-outline" /></n-icon>
@@ -58,6 +58,23 @@
             @delete="onDeleteFolder"
           />
         </ClientOnly>
+
+        <!-- Trash item -->
+        <div
+          class="trash-item"
+          :class="{ active: isTrashView }"
+          @click="navigateToTrash"
+        >
+          <n-icon size="18"><Icon icon="mdi:delete-outline" /></n-icon>
+          <span>Thùng rác</span>
+          <n-badge
+            v-if="trashItems.length > 0"
+            :value="trashItems.length"
+            :max="99"
+            type="error"
+            class="trash-badge"
+          />
+        </div>
       </div>
 
       <!-- User info -->
@@ -119,6 +136,8 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { storeToRefs } from 'pinia'
+import { useFolderStore } from '~/stores/folder'
 import type { FolderTreeNode } from '~/types/folder'
 
 const { currentUser } = useAuth()
@@ -136,6 +155,7 @@ const {
 
 const route = useRoute()
 const store = useFolderStore()
+const { isTrashView, trashItems } = storeToRefs(store)
 
 // Watch for URL folder param changes (browser back/forward)
 watch(() => route.query.folder, (newFolderId) => {
@@ -150,6 +170,16 @@ watch(() => route.query.folder, (newFolderId) => {
   store.setCurrentFolder(folderId, '/')
   loadItems(folderId)
 })
+
+// Watch for trash view changes
+watch(() => route.query.view, (view) => {
+  store.setTrashView(view === 'trash')
+}, { immediate: true })
+
+const router = useRouter()
+function navigateToTrash() {
+  router.push({ path: '/', query: { view: 'trash' } })
+}
 
 const showCreateFolder = ref(false)
 const showRenameFolder = ref(false)
@@ -324,6 +354,34 @@ async function handleDeleteFolder() {
 .tree-root-item.active {
   background: var(--color-primary-light);
   color: var(--color-primary);
+}
+
+.trash-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+  border-radius: var(--radius-sm);
+  margin: 0 0.5rem;
+  font-size: var(--font-size-sm);
+  position: relative;
+}
+
+.trash-item:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.trash-item.active {
+  background: rgba(234, 84, 85, 0.12);
+  color: rgb(234, 84, 85);
+}
+
+.trash-badge {
+  margin-left: auto;
 }
 
 .sidebar-footer {

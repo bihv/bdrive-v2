@@ -13,6 +13,7 @@ export interface Item {
     child_count: number
     created_at: string
     updated_at: string
+    deleted_at?: string
 }
 
 export interface CreateFolderRequest {
@@ -87,4 +88,10 @@ export interface CompleteLargeUploadResponse {
     size: number
     mime_type: string
     download_url: string | null
+}
+
+// Trash types
+export interface RestoreItemRequest {
+    targetParentID?: string
+    newName?: string
 }
