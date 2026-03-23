@@ -1,9 +1,9 @@
 <template>
   <Transition name="fade">
-    <div v-if="previewItemId" class="preview-modal-overlay">
+    <div v-show="previewItemId && previewType !== 'image'" class="preview-modal-overlay">
       <div class="preview-modal-container">
         <!-- Header -->
-        <div class="preview-header">
+        <div v-show="previewType !== 'pdf'" class="preview-header">
           <div class="preview-header-left">
             <n-button quaternary circle @click="closePreview" class="close-btn">
               <template #icon>
@@ -20,7 +20,7 @@
           <div class="preview-header-right">
             <!-- Save button for text editor -->
             <n-button
-              v-if="previewType === 'text' && isContentModified"
+              v-if="(previewType === 'text' || previewType === 'markdown') && isContentModified"
               type="primary"
               size="small"
               :loading="saving"
@@ -59,24 +59,24 @@
 
           <!-- Image Preview -->
           <div v-else-if="previewType === 'image'" class="preview-media-wrapper">
-            <n-image
+            <img
               :src="previewData?.url"
               :alt="previewData?.name"
-              class="preview-image"
-              object-fit="contain"
+              class="preview-image clickable-image"
+              @click="openLightbox"
+              title="Click to zoom"
             />
           </div>
 
           <!-- Video Preview -->
           <div v-else-if="previewType === 'video'" class="preview-media-wrapper">
             <video
-              controls
-              autoplay
+              ref="videoRef"
               class="preview-video"
               :src="previewData?.url"
-            >
-              Your browser does not support video playback.
-            </video>
+              crossorigin="anonymous"
+              playsinline
+            ></video>
           </div>
 
           <!-- Audio Preview -->
@@ -87,14 +87,22 @@
               </n-icon>
               <p class="audio-filename">{{ previewData?.name }}</p>
             </div>
-            <audio controls autoplay class="preview-audio" :src="previewData?.url">
-              Your browser does not support audio playback.
-            </audio>
+            <div class="waveform-wrapper">
+              <div ref="audioContainerRef"></div>
+              <div class="audio-controls">
+                <n-button circle @click="toggleAudio" type="primary" size="large">
+                  <template #icon><Icon :icon="isAudioPlaying ? 'mdi:pause' : 'mdi:play'" /></template>
+                </n-button>
+              </div>
+            </div>
           </div>
 
-          <!-- PDF Preview -->
           <div v-else-if="previewType === 'pdf'" class="preview-pdf-container">
-            <iframe :src="previewData?.url" class="preview-pdf" />
+            <iframe
+              :src="previewData?.url ? previewData.url : ''"
+              class="preview-pdf"
+              title="PDF Preview"
+            ></iframe>
           </div>
 
           <!-- Text/Code Editor (Monaco) -->
@@ -109,6 +117,12 @@
               class="monaco-editor-instance"
               @load="handleEditorMount"
             />
+          </div>
+
+          <!-- Markdown Editor -->
+          <div v-else-if="previewType === 'markdown'" class="preview-editor-container markdown-bg">
+            <n-spin v-if="textLoading" size="medium" />
+            <div v-else ref="markdownEditorRef" class="toast-editor-wrapper"></div>
           </div>
 
           <!-- Unknown File Type -->
@@ -127,6 +141,17 @@
             </n-result>
           </div>
         </div>
+
+        <!-- Floating Close Button for PDF -->
+        <div v-if="previewType === 'pdf'" class="floating-close-container">
+          <n-button round type="primary" class="pdf-close-btn" size="large" @click="closePreview">
+            <template #icon>
+              <n-icon size="20" color="#fff"><Icon icon="mdi:close" /></n-icon>
+            </template>
+            <span style="color: #fff; margin-left: 4px;">Close</span>
+          </n-button>
+        </div>
+
       </div>
     </div>
   </Transition>
@@ -138,7 +163,7 @@ import type { PreviewData, PreviewType } from '~/composables/usePreview'
 
 const message = useMessage()
 const api = useApi()
-const { getPreviewData, getPreviewType, getFileExtension, getMonacoLanguage, previewItemId } = usePreview()
+const { getPreviewData, getPreviewType, getFileExtension, getMonacoLanguage, previewItemId, previewContext } = usePreview()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -150,6 +175,38 @@ const textLoading = ref(false)
 const monacoLanguage = ref('plaintext')
 const saving = ref(false)
 const originalContent = ref('')
+
+// DOM Refs
+const videoRef = ref<HTMLVideoElement | null>(null)
+const audioContainerRef = ref<HTMLElement | null>(null)
+const markdownEditorRef = ref<HTMLElement | null>(null)
+const isAudioPlaying = ref(false)
+
+// Instance Refs
+let plyrInstance: any = null
+let wavesurferInstance: any = null
+let toastEditorInstance: any = null
+let lightboxInstance: any = null
+
+function cleanupInstances() {
+  if (plyrInstance) {
+    plyrInstance.destroy()
+    plyrInstance = null
+  }
+  if (wavesurferInstance) {
+    wavesurferInstance.destroy()
+    wavesurferInstance = null
+  }
+  if (toastEditorInstance) {
+    toastEditorInstance.destroy()
+    toastEditorInstance = null
+  }
+  if (lightboxInstance) {
+    lightboxInstance.destroy()
+    lightboxInstance = null
+  }
+  isAudioPlaying.value = false
+}
 
 const isContentModified = computed(() => textContent.value !== originalContent.value)
 
@@ -196,6 +253,7 @@ function closePreview() {
     if (!confirm('You have unsaved changes. Close anyway?')) return
   }
   previewItemId.value = null
+  cleanupInstances()
   // Reset states
   setTimeout(() => {
     loading.value = true
@@ -251,11 +309,156 @@ async function saveTextContent() {
   }
 }
 
+async function initPlyr() {
+  if (!videoRef.value) return
+  const Plyr = (await import('plyr')).default
+  await import('plyr/dist/plyr.css')
+  plyrInstance = new Plyr(videoRef.value)
+}
+
+async function initWavesurfer(url: string) {
+  if (!audioContainerRef.value) return
+  const WaveSurfer = (await import('wavesurfer.js')).default
+  wavesurferInstance = WaveSurfer.create({
+    container: audioContainerRef.value,
+    waveColor: '#4ade80',
+    progressColor: '#22c55e',
+    cursorColor: '#fff',
+    barWidth: 2,
+    barRadius: 2,
+    height: 60,
+  })
+  wavesurferInstance.load(url)
+  wavesurferInstance.on('play', () => isAudioPlaying.value = true)
+  wavesurferInstance.on('pause', () => isAudioPlaying.value = false)
+}
+
+function toggleAudio() {
+  if (wavesurferInstance) {
+    wavesurferInstance.playPause()
+  }
+}
+
+async function initMarkdownEditor() {
+  if (!markdownEditorRef.value) return
+  // @ts-ignore
+  const Editor = (await import('@toast-ui/editor')).default
+  await import('@toast-ui/editor/dist/toastui-editor.css')
+  
+  toastEditorInstance = new Editor({
+    el: markdownEditorRef.value,
+    height: '100%',
+    initialEditType: 'markdown',
+    previewStyle: 'vertical',
+    initialValue: textContent.value,
+    events: {
+      change: () => {
+        if (toastEditorInstance) {
+          textContent.value = toastEditorInstance.getMarkdown()
+        }
+      }
+    }
+  })
+}
+
+function openLightbox() {
+  if (!previewData.value?.url) return
+
+  const imageItems = previewContext.value.filter(item => getPreviewType(item.name) === 'image')
+  
+  if (imageItems.length === 0) {
+    imageItems.push({ id: previewItemId.value!, name: previewData.value.name })
+  }
+
+  if (!imageItems.find(i => i.id === previewItemId.value)) {
+    imageItems.unshift({ id: previewItemId.value!, name: previewData.value.name })
+  }
+
+  const startIndex = Math.max(0, imageItems.findIndex(i => i.id === previewItemId.value))
+
+  const firstImg = new Image()
+  firstImg.onload = () => {
+    const dataSource = imageItems.map((item: any) => {
+      const isCurrent = item.id === previewItemId.value
+      return {
+        id: item.id,
+        name: item.name,
+        type: 'image',
+        width: isCurrent ? firstImg.naturalWidth : 0,
+        height: isCurrent ? firstImg.naturalHeight : 0,
+        src: isCurrent && previewData.value?.url ? previewData.value.url : ''
+      }
+    })
+
+    import('photoswipe/lightbox').then(({ default: PhotoSwipeLightbox }) => {
+      import('photoswipe/style.css').then(() => {
+        const lightbox = new PhotoSwipeLightbox({
+          dataSource,
+          pswpModule: () => import('photoswipe'),
+          showHideAnimationType: 'fade',
+          preload: [1, 1]
+        })
+
+        lightbox.on('contentLoad', (e) => {
+          const { content } = e
+          if (content.type === 'image' && !content.data.src) {
+            e.preventDefault()
+            content.state = 'loading'
+            
+            getPreviewData(content.data.id).then(data => {
+              const img = new Image()
+              img.onload = () => {
+                content.data.src = data.url
+                content.data.width = img.naturalWidth
+                content.data.height = img.naturalHeight
+                content.width = img.naturalWidth
+                content.height = img.naturalHeight
+                
+                content.element = img
+                content.element.className = 'pswp__img'
+                content.state = 'loaded'
+                
+                // CRITICAL FOR LAZY: Appends to DOM and computes scale!
+                // @ts-ignore
+                if (typeof content.updatePosition === 'function') content.updatePosition()
+                content.onLoaded()
+
+                if (lightbox.pswp) {
+                  lightbox.pswp.refreshSlideContent(content.index)
+                }
+              }
+              img.onerror = () => {
+                content.state = 'error'
+                content.onError()
+              }
+              img.src = data.url
+            }).catch(() => {
+              content.state = 'error'
+              content.onError()
+            })
+          }
+        })
+        
+        lightbox.on('destroy', () => {
+          previewItemId.value = null
+          lightboxInstance = null
+        })
+        
+        lightbox.init()
+        lightbox.loadAndOpen(startIndex)
+        lightboxInstance = lightbox
+      })
+    })
+  }
+  firstImg.src = previewData.value.url
+}
+
 watch(previewItemId, async (newId) => {
   if (!newId) return
 
   loading.value = true
   error.value = null
+  cleanupInstances()
 
   try {
     const data = await getPreviewData(newId)
@@ -264,16 +467,31 @@ watch(previewItemId, async (newId) => {
     previewExtension.value = getFileExtension(data.name)
     monacoLanguage.value = getMonacoLanguage(data.name)
 
-    if (previewType.value === 'text') {
+    if (previewType.value === 'text' || previewType.value === 'markdown') {
       await loadTextContent(data.url)
+    }
+
+    // Force DOM update so that container refs become available
+    loading.value = false
+    await nextTick()
+
+    if (previewType.value === 'markdown') {
+      initMarkdownEditor()
+    } else if (previewType.value === 'video') {
+      initPlyr()
+    } else if (previewType.value === 'audio') {
+      initWavesurfer(data.url)
+    } else if (previewType.value === 'image') {
+      if (!lightboxInstance) {
+        openLightbox()
+      }
     }
   } catch (e: any) {
     error.value = e?.data?.error || 'Failed to load preview'
     message.error(error.value!)
-  } finally {
     loading.value = false
   }
-}, { immediate: true })
+})
 
 </script>
 
@@ -440,15 +658,36 @@ watch(previewItemId, async (newId) => {
 .preview-pdf-container {
   width: 100%;
   height: 100%;
-  max-width: 1200px;
   background: white;
-  box-shadow: 0 0 30px rgba(0,0,0,0.3);
 }
 
 .preview-pdf {
   width: 100%;
   height: 100%;
   border: none;
+}
+
+.floating-close-container {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
+
+.pdf-close-btn {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+  font-weight: bold !important;
+  transition: all 0.3s ease !important;
+}
+
+.pdf-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.9) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4) !important;
 }
 
 /* Monaco Editor */
@@ -470,6 +709,48 @@ watch(previewItemId, async (newId) => {
   padding: 2rem;
   background: var(--color-bg-primary);
   border-radius: var(--radius-lg);
+}
+
+.clickable-image {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.clickable-image:hover {
+  transform: scale(1.02);
+}
+
+.pdf-wrapper {
+  overflow-y: auto;
+  height: 100%;
+  width: 100%;
+}
+
+.toast-editor-wrapper {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.markdown-bg {
+  background-color: white !important;
+  color: #333;
+}
+
+.waveform-wrapper {
+  width: 100%;
+  max-width: 800px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 1.5rem;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.audio-controls {
+  display: flex;
+  justify-content: center;
 }
 
 /* Transitions */

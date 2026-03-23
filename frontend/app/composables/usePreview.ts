@@ -9,7 +9,7 @@ export interface PreviewData {
     updated_at: string
 }
 
-export type PreviewType = 'image' | 'video' | 'audio' | 'pdf' | 'text' | 'office' | 'unknown'
+export type PreviewType = 'image' | 'video' | 'audio' | 'pdf' | 'text' | 'markdown' | 'office' | 'unknown'
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'avif']
 const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v']
@@ -21,8 +21,9 @@ const OFFICE_CELL_EXTENSIONS = ['xls', 'xlsx', 'ods', 'csv', 'xltx', 'ots']
 const OFFICE_SLIDE_EXTENSIONS = ['ppt', 'pptx', 'odp', 'ppsx', 'potx', 'otp']
 const OFFICE_EXTENSIONS = [...OFFICE_WORD_EXTENSIONS, ...OFFICE_CELL_EXTENSIONS, ...OFFICE_SLIDE_EXTENSIONS]
 
+const MARKDOWN_EXTENSIONS = ['md', 'mdx']
 const TEXT_EXTENSIONS = [
-    'txt', 'md', 'json', 'xml', 'log',
+    'txt', 'json', 'xml', 'log',
     'js', 'ts', 'jsx', 'tsx', 'vue', 'svelte',
     'py', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
     'css', 'scss', 'less', 'html', 'htm',
@@ -43,6 +44,7 @@ const EXTENSION_TYPE_MAP = new Map<string, PreviewType>(
         ...AUDIO_EXTENSIONS.map(e => [e, 'audio'] as const),
         ...PDF_EXTENSIONS.map(e => [e, 'pdf'] as const),
         ...OFFICE_EXTENSIONS.map(e => [e, 'office'] as const),
+        ...MARKDOWN_EXTENSIONS.map(e => [e, 'markdown'] as const),
         ...TEXT_EXTENSIONS.map(e => [e, 'text'] as const),
     ]
 )
@@ -80,7 +82,6 @@ const MONACO_LANGUAGE_MAP: Record<string, string> = {
     sql: 'sql',
     graphql: 'graphql', gql: 'graphql',
     // Docs
-    md: 'markdown', mdx: 'markdown',
     txt: 'plaintext', log: 'plaintext', gitignore: 'plaintext', dockerignore: 'plaintext',
     csv: 'plaintext',
     // DevOps
@@ -150,12 +151,19 @@ export function usePreview() {
     }
 
     const previewItemId = useState<string | null>('preview-item-id', () => null)
+    const previewContext = useState<any[]>('preview-context', () => [])
 
     /**
      * Open file preview - either in current tab (normal files) or new tab (Office files)
      */
-    function openPreview(item: { id: string; name: string }) {
+    function openPreview(item: { id: string; name: string }, contextItems?: any[]) {
         const router = useRouter()
+        
+        if (contextItems) {
+            previewContext.value = contextItems
+        } else {
+            previewContext.value = [item]
+        }
         if (isOfficeFile(item.name)) {
             // Office files → new tab
             const url = router.resolve({ path: '/office', query: { id: item.id } })
@@ -168,6 +176,7 @@ export function usePreview() {
 
     return {
         previewItemId,
+        previewContext,
         getPreviewData,
         isOfficeFile,
         getPreviewType,

@@ -125,9 +125,9 @@ function initEditor(data: PreviewData, onlyofficeUrl: string) {
         forcesave: true,
         chat: false,
         comments: false,
-        compactHeader: true,
-        toolbarNoTabs: true,
-        hideRightMenu: true,
+        compactHeader: false,
+        toolbarNoTabs: false,
+        hideRightMenu: false,
         uiTheme: 'theme-dark',
       },
       user: {

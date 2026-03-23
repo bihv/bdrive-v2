@@ -336,7 +336,7 @@ function onItemDblClick(item: Item) {
     navigateToFolder(item.id, item.path)
   } else {
     // Preview file: Office → new tab, others → current tab
-    openPreview({ id: item.id, name: item.name })
+    openPreview({ id: item.id, name: item.name }, displayItems.value)
   }
 }
 
@@ -356,7 +356,7 @@ function onContextSelect(key: string) {
   if (key === 'preview' && contextTarget.value) {
     const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
     if (item) {
-      openPreview({ id: item.id, name: item.name })
+      openPreview({ id: item.id, name: item.name }, displayItems.value)
     }
   }
   if (key === 'rename') showRenameDialog.value = true
