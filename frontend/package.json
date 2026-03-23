@@ -23,6 +23,7 @@
     "photoswipe": "^5.4.4",
     "pinia": "^3.0.4",
     "plyr": "^3.8.4",
+    "vscode-icons-js": "^11.6.1",
     "vue": "^3.5.29",
     "vue-router": "^5.0.3",
     "wavesurfer.js": "^7.12.4"

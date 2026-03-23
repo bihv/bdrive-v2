@@ -25,9 +25,16 @@
         @contextmenu.prevent="isTrashView ? $emit('trash-context', $event, item) : $emit('item-context', $event, item)"
       >
         <div class="fm-item-icon">
-          <n-icon size="36" :style="item.color ? { color: item.color } : {}">
-            <Icon :icon="isTrashView ? 'mdi:delete-outline' : getItemIcon(item)" />
+          <n-icon v-if="isTrashView" size="36">
+            <Icon icon="mdi:delete-outline" />
           </n-icon>
+          <FileIcon 
+            v-else 
+            :filename="item.name" 
+            :isFolder="item.is_folder" 
+            :size="36" 
+            :style="item.color ? { color: item.color } : {}"
+          />
         </div>
         <div class="fm-item-name">{{ item.name }}</div>
         <div class="fm-item-meta">
@@ -59,6 +66,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import FileIcon from './FileIcon.vue'
 import type { Item } from '~/types/folder'
 
 defineProps<{
@@ -75,14 +83,6 @@ defineEmits<{
   (e: 'restore-item', item: Item): void
   (e: 'permanent-delete-item', item: Item): void
 }>()
-
-function getItemIcon(item: Item): string {
-  if (item.is_folder) return 'mdi:folder'
-  if (item.mime_type?.startsWith('image/')) return 'mdi:file-image'
-  if (item.mime_type?.startsWith('video/')) return 'mdi:file-video'
-  if (item.mime_type === 'application/pdf') return 'mdi:file-pdf-box'
-  return 'mdi:file-document-outline'
-}
 
 function formatSize(bytes: number): string {
   if (bytes === 0) return '0 B'
