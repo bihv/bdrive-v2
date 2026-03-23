@@ -32,6 +32,20 @@ services:
       timeout: 5s
       retries: 5
 
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: onedrive-onlyoffice
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      - JWT_ENABLED=false
+      - ALLOW_PRIVATE_IP_ADDRESS=true
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+
 volumes:
   postgres_data:
   redis_data:
+  onlyoffice_data:
+

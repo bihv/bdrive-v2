@@ -52,6 +52,11 @@ export function useApi() {
             ...(options.headers as Record<string, string>),
         }
 
+        // Remove Content-Type for FormData (let browser set multipart boundary)
+        if (options.body instanceof FormData) {
+            delete headers['Content-Type']
+        }
+
         // Attach access token if available
         if (authStore.accessToken) {
             headers['Authorization'] = `Bearer ${authStore.accessToken}`
@@ -91,6 +96,13 @@ export function useApi() {
     async function get<T>(endpoint: string): Promise<T> {
         return apiFetch<T>(endpoint, {
             method: 'GET',
+        })
+    }
+
+    async function put<T>(endpoint: string, body: unknown): Promise<T> {
+        return apiFetch<T>(endpoint, {
+            method: 'PUT',
+            body: body instanceof FormData ? body : JSON.stringify(body),
         })
     }
 
@@ -147,6 +159,7 @@ export function useApi() {
         apiFetch,
         post,
         get,
+        put,
         uploadToURL,
         refreshToken,
         getTrash,

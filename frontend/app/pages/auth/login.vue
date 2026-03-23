@@ -3,12 +3,12 @@
     <div class="login-card glass-card animate-fade-in-up">
       <!-- Logo & Header -->
       <div class="login-header">
-        <UiLogo />
+        <Logo />
         <p class="login-subtitle">Your Cloud, Your Control</p>
       </div>
 
       <!-- Login Form -->
-      <AuthLoginForm
+      <LoginForm
         @success="onLoginSuccess"
         @error="onLoginError"
       />

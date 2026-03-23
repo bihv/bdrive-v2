@@ -10,6 +10,7 @@ export default defineNuxtConfig({
   modules: [
     '@bg-dev/nuxt-naiveui',
     '@pinia/nuxt',
+    'nuxt-monaco-editor',
   ],
 
   css: [
@@ -48,6 +49,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: 'http://localhost:8080',
+      onlyofficeUrl: 'http://localhost:8081',
     },
   },
 

@@ -217,6 +217,8 @@ import type { Item, RestoreItemRequest, FolderTreeNode } from '~/types/folder'
 import { useFolderStore } from '~/stores/folder'
 import FileProperties from '~/components/folders/FileProperties.vue'
 
+const { openPreview, isOfficeFile } = usePreview()
+
 definePageMeta({
   layout: 'default',
   middleware: 'auth',
@@ -274,13 +276,28 @@ const showRestoreDialog = ref(false)
 const selectedRestoreFolder = ref<string | null>(null)
 const newItemName = ref('')
 
-const contextMenuOptions = computed(() => [
-  { label: 'Thông tin', key: 'properties' },
-  { type: 'divider', key: 'd0' },
-  { label: 'Đổi tên', key: 'rename' },
-  { type: 'divider', key: 'd1' },
-  { label: 'Xóa', key: 'delete' },
-])
+const contextMenuOptions = computed(() => {
+  const opts: any[] = [
+    { label: 'Thông tin', key: 'properties' },
+  ]
+  // Show 'Xem trước' only for files
+  if (contextTarget.value) {
+    const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
+    if (item && !item.is_folder) {
+      opts.push({ type: 'divider', key: 'd-preview' })
+      if (isOfficeFile(item.name)) {
+        opts.push({ label: 'Mở và Chỉnh sửa', key: 'preview' })
+      } else {
+        opts.push({ label: 'Xem trước', key: 'preview' })
+      }
+    }
+  }
+  opts.push({ type: 'divider', key: 'd0' })
+  opts.push({ label: 'Đổi tên', key: 'rename' })
+  opts.push({ type: 'divider', key: 'd1' })
+  opts.push({ label: 'Xóa', key: 'delete' })
+  return opts
+})
 
 const trashContextOptions = computed(() => [
   { label: 'Khôi phục', key: 'restore' },
@@ -317,6 +334,9 @@ function formatDeletedDate(dateStr?: string): string {
 function onItemDblClick(item: Item) {
   if (item.is_folder) {
     navigateToFolder(item.id, item.path)
+  } else {
+    // Preview file: Office → new tab, others → current tab
+    openPreview({ id: item.id, name: item.name })
   }
 }
 
@@ -332,6 +352,12 @@ function onContextSelect(key: string) {
   if (key === 'properties') {
     propertiesItemId.value = contextTarget.value?.id || null
     showPropertiesModal.value = true
+  }
+  if (key === 'preview' && contextTarget.value) {
+    const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
+    if (item) {
+      openPreview({ id: item.id, name: item.name })
+    }
   }
   if (key === 'rename') showRenameDialog.value = true
   if (key === 'delete') showDeleteDialog.value = true

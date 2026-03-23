@@ -3,12 +3,12 @@
     <div class="register-card glass-card animate-fade-in-up">
       <!-- Logo & Header -->
       <div class="register-header">
-        <UiLogo />
+        <Logo />
         <p class="register-subtitle">Create your 1Drive account</p>
       </div>
 
       <!-- Register Form -->
-      <AuthRegisterForm
+      <RegisterForm
         @success="onRegisterSuccess"
         @error="onRegisterError"
       />

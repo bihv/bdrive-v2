@@ -598,6 +598,47 @@ func (s *ItemService) initiateLargeUpload(ctx context.Context, userID uuid.UUID,
 	}, nil
 }
 
+// UpdateFileContent overwrites an existing file's content in B2 and updates its size in DB.
+// This is used e.g. for OnlyOffice editing callbacks.
+func (s *ItemService) UpdateFileContent(ctx context.Context, userID uuid.UUID, itemIDStr string, content []byte) error {
+	itemID, err := uuid.Parse(itemIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid item ID")
+	}
+
+	item, err := s.itemRepo.FindByID(itemID, userID)
+	if err != nil {
+		return fmt.Errorf("item not found")
+	}
+
+	if item.IsFolder || item.StorageKey == nil {
+		return fmt.Errorf("item is not a valid file")
+	}
+
+	mimeType := "application/octet-stream"
+	if item.MimeType != nil {
+		mimeType = *item.MimeType
+	}
+
+	// 1. Upload to B2 overwriting the same storage key
+	_, err = s.b2Client.UploadFile(ctx, *item.StorageKey, content, mimeType)
+	if err != nil {
+		s.log.Error("Failed to overwrite file in B2", zap.Error(err), zap.String("key", *item.StorageKey))
+		return fmt.Errorf("failed to upload modified file")
+	}
+
+	// 2. Update DB size
+	newSize := int64(len(content))
+	item.Size = newSize
+	
+	if err := s.itemRepo.Update(item); err != nil {
+		s.log.Error("Failed to update item size in DB", zap.Error(err))
+		return fmt.Errorf("failed to update item size in database")
+	}
+
+	return nil
+}
+
 // CompleteLargeUpload completes a multipart upload
 func (s *ItemService) CompleteLargeUpload(ctx context.Context, userID uuid.UUID, req *dto.CompleteLargeUploadRequest) (*dto.CompleteLargeUploadResponse, error) {
 	if s.b2Client == nil {
@@ -605,8 +646,6 @@ func (s *ItemService) CompleteLargeUpload(ctx context.Context, userID uuid.UUID,
 	}
 
 	var parts []types.CompletedPart
-
-	// Check if frontend provided valid ETags (not just placeholders)
 	hasValidETags := false
 	for _, part := range req.Parts {
 		if part.ETag != "" && !strings.HasPrefix(part.ETag, "part-") {

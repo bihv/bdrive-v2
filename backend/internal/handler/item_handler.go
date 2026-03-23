@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"io"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -194,6 +195,83 @@ func (h *ItemHandler) UpdateItem(c *fiber.Ctx) error {
 		}
 		return c.Status(status).JSON(dto.ErrorResponse{
 			Success: false, Error: err.Error(), Code: code,
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    service.ToItemResponse(item, 0),
+	})
+}
+
+// UpdateItemContent handles PUT /api/v1/items/:id/content
+// Overwrites the content of an existing file with the uploaded data
+func (h *ItemHandler) UpdateItemContent(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid item ID", Code: "INVALID_PARAM",
+		})
+	}
+
+	// Get file from form data
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "No file uploaded", Code: "NO_FILE",
+		})
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: "Failed to open file", Code: "FILE_ERROR",
+		})
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: "Failed to read file", Code: "FILE_READ_ERROR",
+		})
+	}
+
+	err = h.itemService.UpdateFileContent(context.Background(), userID, id.String(), content)
+	if err != nil {
+		status := fiber.StatusInternalServerError
+		code := "UPDATE_ERROR"
+		switch err.Error() {
+		case "item not found":
+			status = fiber.StatusNotFound
+			code = "NOT_FOUND"
+		case "item is not a valid file":
+			status = fiber.StatusBadRequest
+			code = "IS_FOLDER"
+		case "storage not configured":
+			status = fiber.StatusServiceUnavailable
+			code = "STORAGE_NOT_CONFIGURED"
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: code,
+		})
+	}
+
+	// Fetch updated item to return
+	item, _, err := h.itemService.GetItem(id, userID)
+	if err != nil {
+		// Even if we fail to fetch, the update succeeded. 
+		// Return a plain success.
+		return c.JSON(dto.SuccessResponse{
+			Success: true,
+			Data:    fiber.Map{"message": "File content updated successfully"},
 		})
 	}
 
@@ -598,5 +676,77 @@ func (h *ItemHandler) PermanentDeleteItem(c *fiber.Ctx) error {
 	return c.JSON(dto.SuccessResponse{
 		Success: true,
 		Data:    fiber.Map{"message": "Item permanently deleted"},
+	})
+}
+
+// GetPreview handles GET /api/v1/items/:id/preview
+// Returns a pre-signed URL for file preview.
+func (h *ItemHandler) GetPreview(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid item ID", Code: "INVALID_PARAM",
+		})
+	}
+
+	item, _, err := h.itemService.GetItem(id, userID)
+	if err != nil {
+		status := fiber.StatusInternalServerError
+		if err.Error() == "item not found" {
+			status = fiber.StatusNotFound
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: "NOT_FOUND",
+		})
+	}
+
+	if item.IsFolder {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Cannot preview a folder", Code: "IS_FOLDER",
+		})
+	}
+
+	if item.StorageKey == nil {
+		return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
+			Success: false, Error: "File has no storage key", Code: "NO_STORAGE",
+		})
+	}
+
+	if h.b2Client == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
+			Success: false, Error: "Storage not configured", Code: "STORAGE_NOT_CONFIGURED",
+		})
+	}
+
+	// Generate pre-signed URL (1 hour expiry)
+	url, err := h.b2Client.GetFileURL(context.Background(), *item.StorageKey, 3600)
+	if err != nil {
+		h.log.Error("Failed to generate preview URL", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: "Failed to generate preview URL", Code: "URL_ERROR",
+		})
+	}
+
+	mimeType := ""
+	if item.MimeType != nil {
+		mimeType = *item.MimeType
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data: fiber.Map{
+			"url":        url,
+			"mime_type":  mimeType,
+			"name":       item.Name,
+			"size":       item.Size,
+			"updated_at": item.UpdatedAt,
+		},
 	})
 }

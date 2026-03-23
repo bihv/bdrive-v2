@@ -131,6 +131,9 @@
       @rename="handleRenameFolder"
       @delete="handleDeleteFolder"
     />
+
+    <!-- Global File Preview Modal -->
+    <FilePreviewModal />
   </n-layout>
 </template>
 

@@ -62,8 +62,13 @@ func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handle
 	items.Post("/complete-upload", itemHandler.CompleteLargeUpload) // Complete multipart upload
 	items.Get("/", itemHandler.ListItems)
 	items.Get("/:id", itemHandler.GetItem)
+	items.Get("/:id/preview", itemHandler.GetPreview)
 	items.Put("/:id", itemHandler.UpdateItem)
+	items.Put("/:id/content", itemHandler.UpdateItemContent)
 	items.Delete("/:id", itemHandler.DeleteItem)
+
+	// OnlyOffice callback (no auth - called by OnlyOffice server)
+	api.Post("/onlyoffice/callback", itemHandler.OnlyOfficeCallback)
 
 	// Trash routes (protected)
 	trash := api.Group("/trash")
