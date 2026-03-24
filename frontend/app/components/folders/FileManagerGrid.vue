@@ -24,6 +24,17 @@
         @dblclick="!isTrashView && $emit('item-dblclick', item)"
         @contextmenu.prevent="isTrashView ? $emit('trash-context', $event, item) : $emit('item-context', $event, item)"
       >
+        <!-- 3-dot menu button -->
+        <button
+          class="fm-item-menu-btn"
+          :aria-label="'Item actions'"
+          @click.stop="$emit('item-menu-click', item, $event.currentTarget as HTMLElement)"
+        >
+          <n-icon size="16">
+            <Icon icon="mdi:dots-horizontal" />
+          </n-icon>
+        </button>
+
         <div class="fm-item-icon">
           <n-icon v-if="isTrashView" size="36">
             <Icon icon="mdi:delete-outline" />
@@ -80,6 +91,7 @@ defineEmits<{
   (e: 'item-dblclick', item: Item): void
   (e: 'trash-context', event: MouseEvent, item: Item): void
   (e: 'item-context', event: MouseEvent, item: Item): void
+  (e: 'item-menu-click', item: Item, triggerEl: HTMLElement): void
   (e: 'restore-item', item: Item): void
   (e: 'permanent-delete-item', item: Item): void
 }>()

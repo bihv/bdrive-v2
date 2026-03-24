@@ -21,6 +21,7 @@
       @item-dblclick="onItemDblClick"
       @trash-context="onTrashContext"
       @item-context="onItemContext"
+      @item-menu-click="onItemMenuClick"
       @restore-item="handleRestore"
       @permanent-delete-item="handlePermanentDelete"
     />
@@ -207,6 +208,14 @@ function onItemContext(e: MouseEvent, item: Item) {
   contextX.value = e.clientX
   contextY.value = e.clientY
   contextTarget.value = { id: item.id, name: item.name }
+  showContextMenu.value = true
+}
+
+function onItemMenuClick(item: Item, triggerEl: HTMLElement) {
+  contextTarget.value = { id: item.id, name: item.name }
+  const rect = triggerEl.getBoundingClientRect()
+  contextX.value = rect.left
+  contextY.value = rect.bottom + 4
   showContextMenu.value = true
 }
 

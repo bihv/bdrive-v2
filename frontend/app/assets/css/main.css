@@ -253,3 +253,61 @@ body {
   height: 1px;
   background: var(--color-border);
 }
+
+/* ============================================
+   File Manager Item Actions
+   ============================================ */
+
+.fm-item {
+  position: relative;
+}
+
+.fm-item-menu-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  z-index: 2;
+}
+
+.fm-item-menu-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-hover);
+}
+
+/* Desktop: show on hover */
+@media (hover: hover) {
+  .fm-item:hover .fm-item-menu-btn {
+    opacity: 1;
+  }
+}
+
+/* Mobile / touch: always show, smaller */
+@media (hover: none), (pointer: coarse) {
+  .fm-item-menu-btn {
+    opacity: 1;
+    width: 20px;
+    height: 20px;
+    padding: 0.15rem;
+    top: 0.35rem;
+    right: 0.35rem;
+  }
+
+  .fm-item-menu-btn :deep(.n-icon) {
+    font-size: 14px !important;
+  }
+}
