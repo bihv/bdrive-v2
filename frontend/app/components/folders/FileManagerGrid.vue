@@ -21,29 +21,20 @@
         :key="item.id"
         class="fm-item glass-card"
         :class="{ 'is-folder': item.is_folder, 'is-trash': isTrashView }"
-        @dblclick="!isTrashView && $emit('item-dblclick', item)"
-        @contextmenu.prevent="isTrashView ? $emit('trash-context', $event, item) : $emit('item-context', $event, item)"
+        @dblclick="!isTrashView && $emit('action', { type: 'open', item })"
+        @contextmenu.prevent="isTrashView
+          ? $emit('action', { type: 'trash-context', item, eventX: $event.clientX, eventY: $event.clientY })
+          : $emit('action', { type: 'context', item, eventX: $event.clientX, eventY: $event.clientY })"
       >
-        <!-- 3-dot menu button -->
-        <button
-          class="fm-item-menu-btn"
-          :aria-label="'Item actions'"
-          @click.stop="$emit('item-menu-click', item, $event.currentTarget as HTMLElement)"
-        >
-          <n-icon size="16">
-            <Icon icon="mdi:dots-horizontal" />
-          </n-icon>
-        </button>
-
         <div class="fm-item-icon">
           <n-icon v-if="isTrashView" size="36">
             <Icon icon="mdi:delete-outline" />
           </n-icon>
-          <FileIcon 
-            v-else 
-            :filename="item.name" 
-            :isFolder="item.is_folder" 
-            :size="36" 
+          <FileIcon
+            v-else
+            :filename="item.name"
+            :isFolder="item.is_folder"
+            :size="36"
             :style="item.color ? { color: item.color } : {}"
           />
         </div>
@@ -57,14 +48,23 @@
             <span v-else>{{ formatSize(item.size) }}</span>
           </template>
         </div>
+        <button
+          class="fm-item-menu-btn"
+          :aria-label="isTrashView ? 'Item actions' : 'Open menu'"
+          @click.stop="$emit('action', { type: 'menu', item, element: $event.currentTarget as HTMLElement })"
+        >
+          <n-icon size="16">
+            <Icon icon="mdi:dots-horizontal" />
+          </n-icon>
+        </button>
         <div v-if="isTrashView" class="fm-trash-actions">
-          <n-button size="tiny" @click.stop="$emit('restore-item', item)">
+          <n-button size="tiny" @click.stop="$emit('action', { type: 'restore', item })">
             <template #icon>
               <n-icon><Icon icon="mdi:restore" /></n-icon>
             </template>
             Restore
           </n-button>
-          <n-button size="tiny" type="error" @click.stop="$emit('permanent-delete-item', item)">
+          <n-button size="tiny" type="error" @click.stop="$emit('action', { type: 'permanent-delete', item })">
             <template #icon>
               <n-icon><Icon icon="mdi:delete-forever" /></n-icon>
             </template>
@@ -87,14 +87,17 @@ defineProps<{
 }>()
 
 defineEmits<{
+  (e: 'action', event: GridActionEvent): void
   (e: 'create-folder-click'): void
-  (e: 'item-dblclick', item: Item): void
-  (e: 'trash-context', event: MouseEvent, item: Item): void
-  (e: 'item-context', event: MouseEvent, item: Item): void
-  (e: 'item-menu-click', item: Item, triggerEl: HTMLElement): void
-  (e: 'restore-item', item: Item): void
-  (e: 'permanent-delete-item', item: Item): void
 }>()
+
+interface GridActionEvent {
+  type: 'open' | 'menu' | 'context' | 'trash-context' | 'restore' | 'permanent-delete'
+  item: Item
+  element?: HTMLElement
+  eventX?: number
+  eventY?: number
+}
 
 function formatSize(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -130,6 +133,7 @@ function formatDeletedDate(dateStr?: string): string {
 }
 
 .fm-item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -172,6 +176,34 @@ function formatDeletedDate(dateStr?: string): string {
   margin-top: 0.25rem;
 }
 
+.fm-item-menu-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-base);
+}
+
+.fm-item:hover .fm-item-menu-btn {
+  opacity: 1;
+}
+
+.fm-item-menu-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
 .fm-trash-actions {
   display: flex;
   gap: 0.25rem;
@@ -182,6 +214,13 @@ function formatDeletedDate(dateStr?: string): string {
 
 .fm-item.is-trash:hover .fm-trash-actions {
   opacity: 1;
+}
+
+/* Mobile / touch: always show 3-dot button */
+@media (hover: none), (pointer: coarse) {
+  .fm-item-menu-btn {
+    opacity: 1;
+  }
 }
 
 /* Mobile Responsive */
