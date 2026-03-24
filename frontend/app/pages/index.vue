@@ -92,7 +92,7 @@ import FileManagerHeader from '~/components/folders/FileManagerHeader.vue'
 import FileManagerGrid from '~/components/folders/FileManagerGrid.vue'
 import TrashActions from '~/components/folders/TrashActions.vue'
 
-const { openPreview, isOfficeFile } = usePreview()
+const { openPreview, openPreviewAs, isOfficeFile, getPreviewType } = usePreview()
 
 definePageMeta({
   layout: 'default',
@@ -155,12 +155,28 @@ const contextMenuOptions = computed(() => {
   const opts: any[] = [
     { label: 'Properties', key: 'properties' },
   ]
-  // Show 'Mở' only for files
+  // Show 'Open' or 'Open with' for files
   if (contextTarget.value) {
     const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
     if (item && !item.is_folder) {
+      const type = getPreviewType(item.name)
       opts.push({ type: 'divider', key: 'd-preview' })
-      opts.push({ label: 'Open', key: 'preview' })
+      if (type === 'unknown') {
+        // Unknown file type → show submenu "Open with"
+        opts.push({
+          label: 'Open with',
+          key: 'open-with',
+          children: [
+            { label: '📄 OnlyOffice', key: 'open-as-office' },
+            { label: '🖼️ Image Viewer', key: 'open-as-image' },
+            { label: '🎬 Video Player', key: 'open-as-video' },
+            { label: '📖 PDF Viewer', key: 'open-as-pdf' },
+            { label: '📝 Text Editor', key: 'open-as-text' },
+          ],
+        })
+      } else {
+        opts.push({ label: 'Open', key: 'preview' })
+      }
     }
   }
   opts.push({ type: 'divider', key: 'd0' })
@@ -204,6 +220,23 @@ function onContextSelect(key: string) {
     const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
     if (item) {
       openPreview({ id: item.id, name: item.name }, displayItems.value)
+    }
+  }
+  // Handle "Open with" submenu selections
+  if (key.startsWith('open-as-') && contextTarget.value) {
+    const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
+    if (item) {
+      const typeMap: Record<string, string> = {
+        'open-as-office': 'office',
+        'open-as-image': 'image',
+        'open-as-video': 'video',
+        'open-as-pdf': 'pdf',
+        'open-as-text': 'text',
+      }
+      const forceType = typeMap[key] as any
+      if (forceType) {
+        openPreviewAs({ id: item.id, name: item.name }, forceType, displayItems.value)
+      }
     }
   }
   if (key === 'rename') showRenameDialog.value = true

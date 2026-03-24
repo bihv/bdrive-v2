@@ -51,10 +51,11 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import type { BreadcrumbItem } from '~/types/folder'
 
 defineProps<{
   isTrashView: boolean
-  breadcrumbs: { id: string; name: string; path: string }[]
+  breadcrumbs: BreadcrumbItem[]
   hasTrashItems: boolean
 }>()
 

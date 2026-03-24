@@ -125,6 +125,8 @@ function formatDeletedDate(dateStr?: string): string {
   cursor: pointer;
   transition: all var(--transition-base);
   text-align: center;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .fm-item:hover {

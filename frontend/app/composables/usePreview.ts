@@ -152,6 +152,7 @@ export function usePreview() {
 
     const previewItemId = useState<string | null>('preview-item-id', () => null)
     const previewContext = useState<any[]>('preview-context', () => [])
+    const previewForceType = useState<PreviewType | null>('preview-force-type', () => null)
 
     /**
      * Open file preview - either in current tab (normal files) or new tab (Office files)
@@ -159,6 +160,7 @@ export function usePreview() {
     function openPreview(item: { id: string; name: string }, contextItems?: any[]) {
         const router = useRouter()
         
+        previewForceType.value = null
         if (contextItems) {
             previewContext.value = contextItems
         } else {
@@ -174,9 +176,32 @@ export function usePreview() {
         }
     }
 
+    /**
+     * Open file preview with a forced viewer type (bypass auto-detection)
+     */
+    function openPreviewAs(item: { id: string; name: string }, forceType: PreviewType, contextItems?: any[]) {
+        const router = useRouter()
+
+        if (contextItems) {
+            previewContext.value = contextItems
+        } else {
+            previewContext.value = [item]
+        }
+
+        if (forceType === 'office') {
+            // Office → always open in new tab
+            const url = router.resolve({ path: '/office', query: { id: item.id } })
+            window.open(url.href, '_blank')
+        } else {
+            previewForceType.value = forceType
+            previewItemId.value = item.id
+        }
+    }
+
     return {
         previewItemId,
         previewContext,
+        previewForceType,
         getPreviewData,
         isOfficeFile,
         getPreviewType,
@@ -185,5 +210,6 @@ export function usePreview() {
         getMonacoLanguage,
         getOnlyOfficeUrl,
         openPreview,
+        openPreviewAs,
     }
 }

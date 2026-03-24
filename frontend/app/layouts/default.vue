@@ -12,7 +12,7 @@
       @expand="sidebarCollapsed = false"
       class="app-sidebar"
       :class="{ 'is-mobile': !isDesktop }"
-      :native-scrollbar="false"
+      :native-scrollbar="true"
     >
       <div class="sidebar-header">
         <div class="sidebar-logo">
@@ -59,7 +59,10 @@
           />
         </ClientOnly>
 
-        <!-- Trash item -->
+      </div>
+
+      <!-- Footer: Trash + User info -->
+      <div class="sidebar-footer">
         <div
           class="trash-item"
           :class="{ active: isTrashView }"
@@ -75,10 +78,7 @@
             class="trash-badge"
           />
         </div>
-      </div>
 
-      <!-- User info -->
-      <div class="sidebar-footer">
         <div class="user-info" v-if="currentUser">
           <n-avatar :size="32" round>
             {{ currentUser.full_name?.charAt(0) || '?' }}
@@ -286,15 +286,21 @@ async function handleDeleteFolder() {
 
 <style scoped>
 .app-layout {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: var(--color-bg-primary);
 }
 
 .app-sidebar {
   background: var(--color-bg-secondary) !important;
   border-right: 1px solid var(--color-border) !important;
-  display: flex;
-  flex-direction: column;
+}
+
+.app-sidebar :deep(.n-layout-sider-scroll-container) {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  overflow: hidden !important;
 }
 
 .sidebar-header {
@@ -320,6 +326,7 @@ async function handleDeleteFolder() {
 
 .sidebar-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0.75rem 0;
 }
@@ -388,8 +395,12 @@ async function handleDeleteFolder() {
 }
 
 .sidebar-footer {
-  padding: 0.75rem 1rem;
+  margin-top: auto;
+  padding: 0.75rem 0.5rem;
   border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .user-info {
@@ -423,6 +434,7 @@ async function handleDeleteFolder() {
 
 .app-main {
   background: var(--color-bg-primary) !important;
+  overflow-y: auto;
 }
 
 .mobile-header {

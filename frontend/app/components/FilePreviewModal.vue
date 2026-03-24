@@ -163,7 +163,7 @@ import type { PreviewData, PreviewType } from '~/composables/usePreview'
 
 const message = useMessage()
 const api = useApi()
-const { getPreviewData, getPreviewType, getFileExtension, getMonacoLanguage, previewItemId, previewContext } = usePreview()
+const { getPreviewData, getPreviewType, getFileExtension, getMonacoLanguage, previewItemId, previewContext, previewForceType } = usePreview()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -253,6 +253,7 @@ function closePreview() {
     if (!confirm('You have unsaved changes. Close anyway?')) return
   }
   previewItemId.value = null
+  previewForceType.value = null
   cleanupInstances()
   // Reset states
   setTimeout(() => {
@@ -463,7 +464,7 @@ watch(previewItemId, async (newId) => {
   try {
     const data = await getPreviewData(newId)
     previewData.value = data
-    previewType.value = getPreviewType(data.name)
+    previewType.value = previewForceType.value || getPreviewType(data.name)
     previewExtension.value = getFileExtension(data.name)
     monacoLanguage.value = getMonacoLanguage(data.name)
 
