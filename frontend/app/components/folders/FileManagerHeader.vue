@@ -18,6 +18,53 @@
       </template>
     </div>
     <div class="fm-actions">
+      <div class="fm-view-switcher">
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button
+              quaternary
+              size="small"
+              :type="viewMode === 'grid' ? 'primary' : 'default'"
+              @click="setViewMode('grid')"
+            >
+              <template #icon>
+                <n-icon><Icon icon="mdi:view-grid" /></n-icon>
+              </template>
+            </n-button>
+          </template>
+          Grid
+        </n-tooltip>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button
+              quaternary
+              size="small"
+              :type="viewMode === 'list' ? 'primary' : 'default'"
+              @click="setViewMode('list')"
+            >
+              <template #icon>
+                <n-icon><Icon icon="mdi:view-list" /></n-icon>
+              </template>
+            </n-button>
+          </template>
+          List
+        </n-tooltip>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button
+              quaternary
+              size="small"
+              :type="viewMode === 'column' ? 'primary' : 'default'"
+              @click="setViewMode('column')"
+            >
+              <template #icon>
+                <n-icon><Icon icon="mdi:view-column" /></n-icon>
+              </template>
+            </n-button>
+          </template>
+          Columns
+        </n-tooltip>
+      </div>
       <template v-if="isTrashView">
         <n-button
           v-if="hasTrashItems"
@@ -52,6 +99,9 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import type { BreadcrumbItem } from '~/types/folder'
+import { useFileManagerView } from '~/composables/useFileManagerView'
+
+const { viewMode, setViewMode } = useFileManagerView()
 
 defineProps<{
   isTrashView: boolean
@@ -79,6 +129,16 @@ defineEmits<{
 .fm-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+
+.fm-view-switcher {
+  display: flex;
+  gap: 0.125rem;
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 0.125rem;
 }
 
 .trash-title {
@@ -103,6 +163,10 @@ defineEmits<{
   .fm-actions {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .fm-view-switcher {
+    display: none;
   }
 }
 
