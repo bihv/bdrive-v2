@@ -51,7 +51,7 @@
         <button
           class="fm-item-menu-btn"
           :aria-label="isTrashView ? 'Item actions' : 'Open menu'"
-          @click.stop="$emit('action', { type: 'menu', item, element: $event.currentTarget })"
+          @click.stop="$emit('action', { type: 'menu', item, element: $event.currentTarget as HTMLElement })"
         >
           <n-icon size="16">
             <Icon icon="mdi:dots-horizontal" />

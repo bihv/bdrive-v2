@@ -10,12 +10,7 @@ export interface ItemActionContext {
   onPermanentDelete?: (item: Item) => void
 }
 
-export interface MenuOption {
-  label?: string
-  key: string
-  type?: 'divider'
-  children?: MenuOption[]
-}
+export type MenuOption = Record<string, any>
 
 export function useItemActions(context: ItemActionContext) {
   const { displayItems, isTrashView, onNavigate, onDeleteRequest, onRestore, onPermanentDelete } = context
@@ -173,16 +168,17 @@ export function useItemActions(context: ItemActionContext) {
   }
 
   return {
-    // State (readonly where appropriate)
+    // State
     showContextMenu: readonly(showContextMenu),
     showTrashMenu: readonly(showTrashMenu),
     contextX: readonly(contextX),
     contextY: readonly(contextY),
     contextTarget: readonly(contextTarget),
-    propertiesItemId: readonly(propertiesItemId),
-    showRenameDialog: readonly(showRenameDialog),
-    showDeleteDialog: readonly(showDeleteDialog),
-    showPropertiesModal: readonly(showPropertiesModal),
+    // Modal state — writable for v-model binding in page component
+    propertiesItemId,
+    showRenameDialog,
+    showDeleteDialog,
+    showPropertiesModal,
 
     // Computed options
     contextMenuOptions,
