@@ -21,8 +21,10 @@
         :key="item.id"
         class="fm-item glass-card"
         :class="{ 'is-folder': item.is_folder, 'is-trash': isTrashView }"
-        @dblclick="!isTrashView && $emit('item-dblclick', item)"
-        @contextmenu.prevent="isTrashView ? $emit('trash-context', $event, item) : $emit('item-context', $event, item)"
+        @dblclick="!isTrashView && $emit('action', { type: 'open', item })"
+        @contextmenu.prevent="isTrashView
+          ? $emit('action', { type: 'trash-context', item, eventX: $event.clientX, eventY: $event.clientY })
+          : $emit('action', { type: 'context', item, eventX: $event.clientX, eventY: $event.clientY })"
       >
         <div class="fm-item-icon">
           <n-icon v-if="isTrashView" size="36">
@@ -46,6 +48,15 @@
             <span v-else>{{ formatSize(item.size) }}</span>
           </template>
         </div>
+        <button
+          class="fm-item-menu-btn"
+          :aria-label="isTrashView ? 'Item actions' : 'Open menu'"
+          @click.stop="$emit('action', { type: 'menu', item, element: $event.currentTarget })"
+        >
+          <n-icon size="16">
+            <Icon icon="mdi:dots-horizontal" />
+          </n-icon>
+        </button>
         <div v-if="isTrashView" class="fm-trash-actions">
           <n-button size="tiny" @click.stop="$emit('restore-item', item)">
             <template #icon>
@@ -76,13 +87,19 @@ defineProps<{
 }>()
 
 defineEmits<{
+  (e: 'action', event: GridActionEvent): void
   (e: 'create-folder-click'): void
-  (e: 'item-dblclick', item: Item): void
-  (e: 'trash-context', event: MouseEvent, item: Item): void
-  (e: 'item-context', event: MouseEvent, item: Item): void
   (e: 'restore-item', item: Item): void
   (e: 'permanent-delete-item', item: Item): void
 }>()
+
+interface GridActionEvent {
+  type: 'open' | 'menu' | 'context' | 'trash-context'
+  item: Item
+  element?: HTMLElement
+  eventX?: number
+  eventY?: number
+}
 
 function formatSize(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -118,6 +135,7 @@ function formatDeletedDate(dateStr?: string): string {
 }
 
 .fm-item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -158,6 +176,34 @@ function formatDeletedDate(dateStr?: string): string {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   margin-top: 0.25rem;
+}
+
+.fm-item-menu-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-base);
+}
+
+.fm-item:hover .fm-item-menu-btn {
+  opacity: 1;
+}
+
+.fm-item-menu-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
 }
 
 .fm-trash-actions {
