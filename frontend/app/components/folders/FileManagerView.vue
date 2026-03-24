@@ -2,15 +2,11 @@
 import { computed, toRef } from 'vue'
 import type { Item } from '~/types/folder'
 import { useFileManagerView } from '~/composables/useFileManagerView'
-import { useItemActions } from '~/composables/useItemActions'
 
 interface Props {
   items: Item[]
   isTrashView: boolean
-  onNavigate: (id: string, path: string) => void
-  onDeleteRequest: (item: { id: string; name: string }) => void
-  onRestoreItem: (item: Item) => void
-  onPermanentDeleteItem: (item: Item) => void
+  actions: ReturnType<typeof import('~/composables/useItemActions').useItemActions>
 }
 
 const props = defineProps<Props>()
@@ -25,15 +21,6 @@ const { currentComponent } = useFileManagerView()
 const displayItems = toRef(props, 'items')
 const isTrashView = computed(() => props.isTrashView)
 
-const actions = useItemActions({
-  displayItems,
-  isTrashView,
-  onNavigate: props.onNavigate,
-  onDeleteRequest: props.onDeleteRequest,
-  onRestore: props.onRestoreItem,
-  onPermanentDelete: props.onPermanentDeleteItem,
-})
-
 const {
   showContextMenu,
   showTrashMenu,
@@ -46,8 +33,10 @@ const {
   showMenuAt,
   handleMenuSelect,
   handleTrashSelect,
+  requestRename,
   propertiesItemId,
-} = actions
+  closeMenus,
+} = props.actions
 
 watch(propertiesItemId, (id) => {
   if (id) {
@@ -80,13 +69,13 @@ function onAction(event: {
       showMenuAt(eventX!, eventY!, item, true)
       break
     case 'restore':
-      props.onRestoreItem(item)
+      handleTrashSelect('restore')
       break
     case 'permanent-delete':
-      props.onPermanentDeleteItem(item)
+      handleTrashSelect('permanent-delete')
       break
     case 'rename':
-      actions.requestRename()
+      requestRename()
       emit('rename-request')
       break
   }
@@ -110,7 +99,7 @@ function onAction(event: {
       placement="bottom-start"
       :options="contextMenuOptions"
       @select="handleMenuSelect"
-      @clickoutside="showContextMenu = false"
+      @clickoutside="closeMenus"
     />
     <n-dropdown
       :show="showTrashMenu"
@@ -120,7 +109,7 @@ function onAction(event: {
       placement="bottom-start"
       :options="trashMenuOptions"
       @select="handleTrashSelect"
-      @clickoutside="showTrashMenu = false"
+      @clickoutside="closeMenus"
     />
   </div>
 </template>
