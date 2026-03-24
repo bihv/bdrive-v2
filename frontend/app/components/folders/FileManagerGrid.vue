@@ -4,7 +4,7 @@
       <n-empty :description="isTrashView ? 'Trash is empty' : 'Folder is empty'">
         <template #icon>
           <n-icon size="48" :depth="3">
-            <Icon :icon="isTrashView ? 'mdi:delete-outline' : 'mdi:folder-open-outline'" />
+            <Icon :icon="isTrashView ? 'mdi:trash-can' : 'mdi:folder-open-outline'" />
           </n-icon>
         </template>
         <template v-if="!isTrashView" #extra>
@@ -130,6 +130,7 @@ function formatDeletedDate(dateStr?: string): string {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 1rem;
+  padding: 0.5rem;
 }
 
 .fm-item {
@@ -139,25 +140,36 @@ function formatDeletedDate(dateStr?: string): string {
   align-items: center;
   padding: 1.25rem 0.75rem;
   cursor: pointer;
-  transition: all var(--transition-base);
   text-align: center;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  transition: all var(--transition-base);
 }
 
 .fm-item:hover {
   background: var(--color-surface-hover);
+  border-color: var(--color-border-hover);
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.fm-item:active {
+  transform: translateY(0);
+}
+
+.fm-item.is-folder .fm-item-icon {
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.5));
 }
 
 .fm-item-icon {
   margin-bottom: 0.5rem;
   color: var(--color-text-secondary);
+  transition: filter var(--transition-base), transform var(--transition-base);
 }
 
-.fm-item.is-folder .fm-item-icon {
-  color: var(--color-primary);
+.fm-item:hover .fm-item-icon {
+  transform: scale(1.05);
 }
 
 .fm-item-name {
@@ -228,6 +240,7 @@ function formatDeletedDate(dateStr?: string): string {
   .fm-grid {
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 0.75rem;
+    padding: 0.25rem;
   }
 
   .fm-item {

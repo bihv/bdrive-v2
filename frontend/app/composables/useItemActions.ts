@@ -167,6 +167,15 @@ export function useItemActions(context: ItemActionContext) {
     showTrashMenu.value = false
   }
 
+  /** Inline trash row buttons (Restore / Delete forever) — no prior context menu target */
+  function applyTrashAction(item: Item, key: 'restore' | 'permanent-delete') {
+    if (key === 'restore') {
+      onRestore?.(item)
+      return
+    }
+    onPermanentDelete?.(item)
+  }
+
   return {
     // State
     showContextMenu: readonly(showContextMenu),
@@ -193,5 +202,6 @@ export function useItemActions(context: ItemActionContext) {
     requestRename,
     requestDelete,
     closeMenus,
+    applyTrashAction,
   }
 }

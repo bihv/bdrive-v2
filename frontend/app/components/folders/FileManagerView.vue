@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, toRef } from 'vue'
+import { computed } from 'vue'
 import type { Item } from '~/types/folder'
+import FileManagerGrid from './FileManagerGrid.vue'
+import FileManagerList from './FileManagerList.vue'
 import { useFileManagerView } from '~/composables/useFileManagerView'
 
 interface Props {
   items: Item[]
+  displayLoading: boolean
   isTrashView: boolean
   actions: ReturnType<typeof import('~/composables/useItemActions').useItemActions>
 }
@@ -16,9 +19,8 @@ const emit = defineEmits<{
   (e: 'properties-item', id: string): void
 }>()
 
-const { currentComponent } = useFileManagerView()
+const { viewMode } = useFileManagerView()
 
-const displayItems = toRef(props, 'items')
 const isTrashView = computed(() => props.isTrashView)
 
 const {
@@ -36,6 +38,7 @@ const {
   requestRename,
   propertiesItemId,
   closeMenus,
+  applyTrashAction,
 } = props.actions
 
 watch(propertiesItemId, (id) => {
@@ -69,10 +72,10 @@ function onAction(event: {
       showMenuAt(eventX!, eventY!, item, true)
       break
     case 'restore':
-      handleTrashSelect('restore')
+      applyTrashAction(item, 'restore')
       break
     case 'permanent-delete':
-      handleTrashSelect('permanent-delete')
+      applyTrashAction(item, 'permanent-delete')
       break
     case 'rename':
       requestRename()
@@ -84,9 +87,17 @@ function onAction(event: {
 
 <template>
   <div class="fm-view">
-    <component
-      :is="currentComponent"
-      :items="items"
+    <FileManagerGrid
+      v-if="viewMode === 'grid'"
+      :display-items="items"
+      :display-loading="displayLoading"
+      :is-trash-view="isTrashView"
+      @action="onAction"
+    />
+    <FileManagerList
+      v-else-if="viewMode === 'list'"
+      :display-items="items"
+      :display-loading="displayLoading"
       :is-trash-view="isTrashView"
       @action="onAction"
     />
@@ -113,3 +124,12 @@ function onAction(event: {
     />
   </div>
 </template>
+
+<style scoped>
+.fm-view {
+  padding: 1rem;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+</style>

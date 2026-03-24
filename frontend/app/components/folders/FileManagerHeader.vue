@@ -49,21 +49,6 @@
           </template>
           List
         </n-tooltip>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button
-              quaternary
-              size="small"
-              :type="viewMode === 'column' ? 'primary' : 'default'"
-              @click="setViewMode('column')"
-            >
-              <template #icon>
-                <n-icon><Icon icon="mdi:view-column" /></n-icon>
-              </template>
-            </n-button>
-          </template>
-          Columns
-        </n-tooltip>
       </div>
       <template v-if="isTrashView">
         <n-button
@@ -135,10 +120,28 @@ defineEmits<{
 .fm-view-switcher {
   display: flex;
   gap: 0.125rem;
-  background: var(--glass-bg);
-  border: var(--glass-border);
-  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: 0.125rem;
+}
+
+.fm-view-switcher .n-button {
+  border-radius: calc(var(--radius-md) - 2px);
+  transition: all var(--transition-fast);
+}
+
+.fm-view-switcher .n-button:hover {
+  background: var(--color-surface-hover);
+}
+
+.fm-view-switcher .n-button[type="primary"] {
+  background: var(--color-primary) !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.fm-view-switcher .n-button[type="primary"]:hover {
+  background: var(--color-primary-hover) !important;
 }
 
 .trash-title {

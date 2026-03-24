@@ -36,9 +36,8 @@
 <script setup lang="ts">
 import { h, ref, computed } from 'vue'
 import type { TreeOption } from 'naive-ui'
-import { NIcon } from 'naive-ui'
-import { Icon } from '@iconify/vue'
 import type { FolderTreeNode } from '~/types/folder'
+import FileIcon from './FileIcon.vue'
 
 const props = defineProps<{
   tree: FolderTreeNode[]
@@ -101,11 +100,22 @@ const nodeProps = ({ option }: { option: TreeOption }) => {
   }
 }
 
-const renderPrefix = ({ option, expanded }: any) => {
+const renderPrefix = ({ option }: { option: TreeOption }) => {
   const node = option as unknown as FolderTreeNode
-  return h(NIcon, { size: 18, style: node.color ? { color: node.color } : undefined }, {
-    default: () => h(Icon, { icon: expanded ? 'mdi:folder-open' : 'mdi:folder' })
-  })
+  return h(
+    'span',
+    {
+      class: 'tree-node-icon',
+      style: node.color ? { color: node.color } : undefined,
+    },
+    [
+      h(FileIcon, {
+        filename: node.name,
+        isFolder: true,
+        size: 18,
+      }),
+    ],
+  )
 }
 
 
@@ -124,5 +134,32 @@ const renderPrefix = ({ option, expanded }: any) => {
 .tree-empty-text {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+}
+
+.tree-node-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* Tree node hover & selected */
+.folder-tree :deep(.n-tree-node) {
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.folder-tree :deep(.n-tree-node:hover) {
+  background: var(--color-surface-hover);
+}
+
+.folder-tree :deep(.n-tree-node--selected) {
+  background: var(--color-primary-light) !important;
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.folder-tree :deep(.n-tree-node--selected .n-tree-node-content__text) {
+  color: var(--color-primary);
+  font-weight: 500;
 }
 </style>

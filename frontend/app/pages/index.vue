@@ -14,8 +14,10 @@
     <!-- Items View (Grid/List/Column) -->
     <FileManagerView
       :items="displayItems"
+      :display-loading="displayLoading"
       :is-trash-view="isTrashView"
       :actions="actions"
+      @create-folder-click="showCreateFolder = true"
     />
 
     <!-- Modals -->
@@ -101,6 +103,7 @@ const displayLoading = computed(() => {
 })
 
 const showCreateFolder = ref(false)
+
 const showDeleteDialog = ref(false)
 const showUploadFile = ref(false)
 const showPropertiesModal = ref(false)

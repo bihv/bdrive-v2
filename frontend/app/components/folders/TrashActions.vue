@@ -13,7 +13,7 @@
         :class="{ active: selectedRestoreFolder === null }"
         @click="$emit('update:selectedRestoreFolder', null)"
       >
-        <n-icon><Icon icon="mdi:home-outline" /></n-icon>
+        <n-icon><Icon icon="mdi:home-variant" /></n-icon>
         <span>Root folder</span>
       </div>
       <div

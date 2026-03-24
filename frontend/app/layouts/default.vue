@@ -43,7 +43,7 @@
           :class="{ active: !currentFolderId && !isTrashView }"
           @click="navigateToFolder(null, '/')"
         >
-          <n-icon size="18"><Icon icon="mdi:home-outline" /></n-icon>
+          <n-icon size="18"><Icon icon="mdi:home-variant" /></n-icon>
           <span>Tất cả file</span>
         </div>
 
@@ -68,7 +68,7 @@
           :class="{ active: isTrashView }"
           @click="navigateToTrash"
         >
-          <n-icon size="18"><Icon icon="mdi:delete-outline" /></n-icon>
+          <n-icon size="18"><Icon icon="mdi:trash-can-outline" /></n-icon>
           <span>Thùng rác</span>
           <n-badge
             v-if="trashItems.length > 0"
@@ -340,7 +340,8 @@ async function handleDeleteFolder() {
   font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  margin-top: 0.25rem;
 }
 
 .tree-root-item {
@@ -364,6 +365,7 @@ async function handleDeleteFolder() {
 .tree-root-item.active {
   background: var(--color-primary-light);
   color: var(--color-primary);
+  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
 .trash-item {
@@ -386,8 +388,9 @@ async function handleDeleteFolder() {
 }
 
 .trash-item.active {
-  background: rgba(234, 84, 85, 0.12);
-  color: rgb(234, 84, 85);
+  background: var(--color-error-light);
+  color: var(--color-error);
+  box-shadow: inset 3px 0 0 var(--color-error);
 }
 
 .trash-badge {
