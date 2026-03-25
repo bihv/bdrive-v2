@@ -36,7 +36,7 @@
           </n-breadcrumb-item>
         </n-breadcrumb>
       </template>
-      <template v-else-if="activeView === 'all'">
+      <template v-else-if="activeView === 'all' && viewTitle !== 'All files'">
         <span class="trash-title">{{ viewTitle }}</span>
       </template>
     </div>
@@ -53,12 +53,12 @@
       </button>
     </div>
     <div class="fm-actions">
-      <!-- Search button — opens SearchPalette -->
       <n-tooltip trigger="hover">
         <template #trigger>
           <n-button
             quaternary
             size="small"
+            class="fm-search-btn"
             @click="openSearchPalette"
           >
             <template #icon>
@@ -106,27 +106,32 @@
           v-if="hasTrashItems"
           type="warning"
           size="small"
+          class="fm-action-btn fm-action-btn--danger"
           @click="$emit('empty-trash')"
         >
           <template #icon>
             <n-icon><Icon icon="mdi:delete-sweep" /></n-icon>
           </template>
-          Empty Trash
+          <span class="fm-action-label">Empty Trash</span>
         </n-button>
       </template>
       <template v-else>
-        <n-button type="primary" size="small" @click="$emit('upload-click')">
-          <template #icon>
-            <n-icon><Icon icon="mdi:upload" /></n-icon>
-          </template>
-          Upload
-        </n-button>
-        <n-button type="primary" size="small" @click="$emit('create-folder-click')">
-          <template #icon>
-            <n-icon><Icon icon="mdi:folder-plus" /></n-icon>
-          </template>
-          New folder
-        </n-button>
+        <n-dropdown
+          trigger="click"
+          :options="createActionOptions"
+          @select="handleCreateActionSelect"
+        >
+          <n-button
+            type="primary"
+            size="small"
+            class="fm-action-btn fm-action-btn--create"
+          >
+            <template #icon>
+              <n-icon><Icon icon="mdi:plus" /></n-icon>
+            </template>
+            <span class="fm-action-label">New</span>
+          </n-button>
+        </n-dropdown>
       </template>
     </div>
   </div>
@@ -134,6 +139,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { h } from 'vue'
 import type { BreadcrumbItem } from '~/types/folder'
 import { useFileManagerView } from '~/composables/useFileManagerView'
 import { useSearchPalette } from '~/composables/useSearchPalette'
@@ -160,6 +166,19 @@ const tabs = [
   { key: 'recent', label: 'Recent', icon: 'mdi:history' },
   { key: 'starred', label: 'Starred', icon: 'mdi:star-outline' },
 ] as const
+
+const createActionOptions = [
+  {
+    label: 'Upload file',
+    key: 'upload',
+    icon: () => h(Icon, { icon: 'mdi:upload' }),
+  },
+  {
+    label: 'New folder',
+    key: 'folder',
+    icon: () => h(Icon, { icon: 'mdi:folder-plus' }),
+  },
+]
 
 const props = defineProps<{
   isTrashView: boolean
@@ -214,19 +233,38 @@ function handleCollapsedBreadcrumbSelect(key: string) {
   if (Number.isNaN(index)) return
   emit('breadcrumb-click', index)
 }
+
+function handleCreateActionSelect(key: string) {
+  if (key === 'upload') {
+    emit('upload-click')
+    return
+  }
+
+  if (key === 'folder') {
+    emit('create-folder-click')
+  }
+}
 </script>
 
 <style scoped>
 .fm-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "title tabs actions";
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   gap: 1rem;
-  flex-wrap: wrap;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(circle at left top, rgba(59, 130, 246, 0.12), transparent 28%),
+    rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .fm-tabs {
+  grid-area: tabs;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.25rem;
@@ -235,6 +273,13 @@ function handleCollapsedBreadcrumbSelect(key: string) {
   border-radius: var(--radius-lg);
   background: var(--color-bg-secondary);
   width: min(100%, 540px);
+  backdrop-filter: blur(18px);
+  justify-self: center;
+}
+
+.fm-breadcrumb {
+  grid-area: title;
+  min-width: 0;
 }
 
 .crumb-label {
@@ -290,9 +335,13 @@ function handleCollapsedBreadcrumbSelect(key: string) {
 }
 
 .fm-actions {
+  grid-area: actions;
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  justify-self: end;
 }
 
 .fm-view-switcher {
@@ -323,43 +372,121 @@ function handleCollapsedBreadcrumbSelect(key: string) {
 }
 
 .trash-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-size: clamp(1.15rem, 2vw, 1.6rem);
+  font-weight: 700;
   color: var(--color-text-primary);
+  letter-spacing: -0.03em;
 }
 
 @media (max-width: 768px) {
   .fm-header {
-    flex-direction: column;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title actions"
+      "tabs tabs";
+    align-items: center;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
+    padding: 0.85rem;
     margin-bottom: 0;
   }
 
   .fm-breadcrumb {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    min-width: 0;
   }
 
   .fm-actions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.35rem;
+  }
+
+  .fm-search-btn {
+    display: none;
   }
 
   .fm-tabs {
+    grid-area: tabs;
     width: 100%;
+    overflow-x: auto;
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+  }
+
+  .fm-tab {
+    min-height: 40px;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .fm-actions :deep(.n-button) {
+    flex-shrink: 0;
+  }
+
+  .fm-view-switcher {
+    flex-shrink: 0;
+  }
+
+  .fm-view-switcher :deep(.n-button) {
+    min-width: 34px;
   }
 
   .crumb-label {
-    max-width: 120px;
+    max-width: 140px;
+  }
+
+  .fm-breadcrumb :deep(.n-breadcrumb) {
+    width: 100%;
   }
 }
 
 @media (max-width: 480px) {
+  .fm-tabs {
+    display: flex;
+    width: 100%;
+    padding: 0.2rem;
+    gap: 0.2rem;
+  }
+
+  .fm-tab {
+    flex: 1 0 104px;
+    font-size: var(--font-size-sm);
+  }
+
   .fm-actions :deep(.n-button) {
     font-size: var(--font-size-xs);
-    padding: 0 0.75rem;
+    padding: 0 0.6rem;
+  }
+
+  .fm-actions {
+    gap: 0.25rem;
+  }
+
+  .fm-actions > :nth-child(1) :deep(.n-button),
+  .fm-actions > :nth-child(2) :deep(.n-button) {
+    width: 36px;
+    padding: 0;
+  }
+
+  .fm-action-btn--create :deep(.n-button__content),
+  .fm-action-btn--danger :deep(.n-button__content) {
+    gap: 0;
+  }
+
+  .fm-action-btn--create :deep(.n-button__content .fm-action-label),
+  .fm-action-btn--danger :deep(.n-button__content .fm-action-label) {
+    display: none;
+  }
+
+  .fm-action-btn--create,
+  .fm-action-btn--danger {
+    width: 36px;
+  }
+
+  .fm-action-btn--create :deep(.n-button),
+  .fm-action-btn--danger :deep(.n-button) {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
   }
 }
 </style>

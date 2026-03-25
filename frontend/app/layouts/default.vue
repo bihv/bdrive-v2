@@ -125,16 +125,38 @@
     <n-layout class="app-main">
       <!-- Mobile header with menu button -->
       <div class="mobile-header">
-        <n-button
-          quaternary
-          circle
-          size="medium"
-          @click="sidebarCollapsed = !sidebarCollapsed"
-        >
-          <template #icon>
-            <n-icon><Icon icon="mdi:menu" /></n-icon>
-          </template>
-        </n-button>
+        <div class="mobile-header-main">
+          <n-button
+            quaternary
+            circle
+            size="medium"
+            class="mobile-menu-btn"
+            @click="sidebarCollapsed = !sidebarCollapsed"
+          >
+            <template #icon>
+              <n-icon><Icon icon="mdi:menu" /></n-icon>
+            </template>
+          </n-button>
+
+          <div class="mobile-header-copy">
+            <strong>{{ mobileHeaderTitle }}</strong>
+            <span>{{ currentUser?.full_name || '1Drive' }}</span>
+          </div>
+        </div>
+
+        <div class="mobile-header-actions">
+          <n-button
+            quaternary
+            circle
+            size="medium"
+            class="mobile-menu-btn"
+            @click="openSearchPalette"
+          >
+            <template #icon>
+              <n-icon><Icon icon="mdi:magnify" /></n-icon>
+            </template>
+          </n-button>
+        </div>
       </div>
 
       <div class="main-content">
@@ -189,6 +211,7 @@ const {
 const {
   refresh: refreshQuickAccess,
 } = useQuickAccess()
+const { open: openSearchPalette } = useSearchPalette()
 
 const route = useRoute()
 const store = useFolderStore()
@@ -220,6 +243,12 @@ watch(currentUser, async () => {
 const router = useRouter()
 const isSettingsActive = computed(() => route.path === '/settings')
 const isAllFilesActive = computed(() => route.path === '/' && !isTrashView.value)
+const mobileHeaderTitle = computed(() => {
+  if (route.path === '/settings') return 'Settings'
+  if (route.path === '/office') return 'Office'
+  if (isTrashView.value) return 'Thùng rác'
+  return '1Drive'
+})
 
 function navigateToRoot() {
   router.push({ path: '/', query: currentFolderId.value ? { folder: currentFolderId.value } : {} })
@@ -552,8 +581,55 @@ async function handleLogout() {
   .mobile-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(10, 10, 15, 0.82);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-header-main {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .mobile-menu-btn {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .mobile-header-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .mobile-header-copy strong {
+    font-size: var(--font-size-base);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .mobile-header-copy span {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
   .sidebar-header {

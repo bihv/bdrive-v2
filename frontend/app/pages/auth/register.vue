@@ -1,13 +1,13 @@
 <template>
-  <div>
-    <div class="register-card glass-card animate-fade-in-up">
-      <!-- Logo & Header -->
+  <div class="auth-page">
+    <div class="register-card animate-fade-in-up">
       <div class="register-header">
+        <span class="register-kicker">Get started</span>
         <Logo />
-        <p class="register-subtitle">Create your 1Drive account</p>
+        <h2>Tạo tài khoản 1Drive</h2>
+        <p class="register-subtitle">Thiết lập không gian lưu trữ an toàn cho nhóm và tài liệu nội bộ.</p>
       </div>
 
-      <!-- Register Form -->
       <RegisterForm
         @success="onRegisterSuccess"
         @error="onRegisterError"
@@ -38,33 +38,43 @@ function onRegisterError(message: string) {
 </script>
 
 <style scoped>
+.auth-page {
+  width: 100%;
+}
+
 .register-card {
   width: 100%;
-  max-width: 420px;
-  padding: 2.5rem;
+  max-width: 480px;
 }
 
 .register-header {
-  text-align: center;
-  margin-bottom: 2rem;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.register-kicker {
+  color: var(--color-accent);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.register-header h2 {
+  letter-spacing: -0.03em;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
 }
 
 .register-subtitle {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-  font-weight: 400;
 }
 
-/* Responsive */
 @media (max-width: 480px) {
-  .register-card {
-    padding: 1.5rem;
-    margin: 0 0.5rem;
-    border-radius: var(--radius-md);
+  .register-header h2 {
+    font-size: 1.5rem;
   }
 }
 </style>

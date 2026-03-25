@@ -1,28 +1,28 @@
 <template>
   <div class="file-manager">
-    <!-- Header -->
-    <FileManagerHeader
-      :is-trash-view="isTrashView"
-      :breadcrumbs="breadcrumbs"
-      :has-trash-items="trashItems.length > 0"
-      :active-view="activeView"
-      :view-title="viewTitle"
-      @breadcrumb-click="onBreadcrumbClick"
-      @view-change="onViewChange"
-      @empty-trash="handleEmptyTrash"
-      @upload-click="showUploadFile = true"
-      @create-folder-click="showCreateFolder = true"
-    />
+    <div class="file-manager-shell glass-card">
+      <FileManagerHeader
+        :is-trash-view="isTrashView"
+        :breadcrumbs="breadcrumbs"
+        :has-trash-items="trashItems.length > 0"
+        :active-view="activeView"
+        :view-title="viewTitle"
+        @breadcrumb-click="onBreadcrumbClick"
+        @view-change="onViewChange"
+        @empty-trash="handleEmptyTrash"
+        @upload-click="showUploadFile = true"
+        @create-folder-click="showCreateFolder = true"
+      />
 
-    <!-- Items View (Grid/List/Column) -->
-    <FileManagerView
-      :items="displayItems"
-      :display-loading="displayLoading"
-      :is-trash-view="isTrashView"
-      :show-create-folder-action="activeView === 'all'"
-      :actions="actions"
-      @create-folder-click="showCreateFolder = true"
-    />
+      <FileManagerView
+        :items="displayItems"
+        :display-loading="displayLoading"
+        :is-trash-view="isTrashView"
+        :show-create-folder-action="activeView === 'all'"
+        :actions="actions"
+        @create-folder-click="showCreateFolder = true"
+      />
+    </div>
 
     <!-- Modals -->
     <FolderActions
@@ -395,15 +395,43 @@ watch(actions.showPropertiesModal, (v) => {
 
 <style scoped>
 .file-manager {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 1.5rem 2rem;
+  isolation: isolate;
+}
+
+.file-manager::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top right, rgba(6, 182, 212, 0.12), transparent 26%),
+    radial-gradient(circle at 14% 78%, rgba(59, 130, 246, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(10, 10, 15, 0.92), rgba(10, 10, 15, 0.98)),
+    var(--color-bg-primary);
+}
+
+.file-manager-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.1rem;
+  border: 1px solid var(--color-border);
 }
 
 @media (max-width: 768px) {
   .file-manager {
+    padding: 0.75rem;
+  }
+
+  .file-manager-shell {
     padding: 0.75rem;
   }
 }

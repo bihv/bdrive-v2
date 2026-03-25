@@ -163,13 +163,16 @@ function formatDeletedDate(dateStr?: string): string {
   align-items: center;
   justify-content: center;
   min-height: 400px;
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
 }
 
 .fm-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 1rem;
-  padding: 0.5rem;
+  padding: 0.25rem;
 }
 
 .fm-item {
@@ -181,16 +184,18 @@ function formatDeletedDate(dateStr?: string): string {
   cursor: pointer;
   text-align: center;
   border-radius: var(--radius-md);
-  border: 1px solid transparent;
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.018);
   transition: all var(--transition-base);
 }
 
 .fm-item:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 40%),
+    var(--color-surface-hover);
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
 .fm-item:active {
@@ -199,6 +204,11 @@ function formatDeletedDate(dateStr?: string): string {
 
 .fm-item.is-folder .fm-item-icon {
   filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.5));
+}
+
+.fm-item.highlighted {
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.16), 0 10px 22px rgba(8, 47, 73, 0.14);
 }
 
 .fm-item-icon {

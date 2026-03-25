@@ -137,5 +137,6 @@ function onAction(event: {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
+  padding-top: 0.1rem;
 }
 </style>

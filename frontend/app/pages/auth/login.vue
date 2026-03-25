@@ -1,13 +1,13 @@
 <template>
-  <div>
-    <div class="login-card glass-card animate-fade-in-up">
-      <!-- Logo & Header -->
+  <div class="auth-page">
+    <div class="login-card animate-fade-in-up">
       <div class="login-header">
+        <span class="login-kicker">Welcome back</span>
         <Logo />
-        <p class="login-subtitle">Your Cloud, Your Control</p>
+        <h2>Đăng nhập để tiếp tục làm việc</h2>
+        <p class="login-subtitle">Truy cập file, preview và editor trong cùng một workspace.</p>
       </div>
 
-      <!-- Login Form -->
       <LoginForm
         @success="onLoginSuccess"
         @error="onLoginError"
@@ -38,35 +38,43 @@ function onLoginError(message: string) {
 </script>
 
 <style scoped>
+.auth-page {
+  width: 100%;
+}
+
 .login-card {
   width: 100%;
-  max-width: 420px;
-  padding: 2.5rem;
+  max-width: 460px;
 }
 
 .login-header {
-  text-align: center;
-  margin-bottom: 2rem;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.login-kicker {
+  color: var(--color-accent);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.login-header h2 {
+  letter-spacing: -0.03em;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
 }
 
 .login-subtitle {
   font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  font-weight: 400;
+  color: var(--color-text-secondary);
 }
 
-/* Responsive */
 @media (max-width: 480px) {
-  .login-card {
-    padding: 1.5rem;
-    margin: 0 0.5rem;
-    border-radius: var(--radius-md);
+  .login-header h2 {
+    font-size: 1.5rem;
   }
 }
 </style>

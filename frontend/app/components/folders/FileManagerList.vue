@@ -195,10 +195,32 @@ function formatDate(dateStr?: string): string {
   align-items: center;
   justify-content: center;
   min-height: 400px;
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
 }
 
 .fm-list-wrapper {
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.24) transparent;
+}
+
+.fm-list-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.fm-list-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fm-list-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+}
+
+.fm-list-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.34);
 }
 
 .fm-list-table {
@@ -218,7 +240,8 @@ function formatDate(dateStr?: string): string {
   border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
-  background: var(--color-bg-primary);
+  background: rgba(18, 18, 26, 0.72);
+  backdrop-filter: blur(18px);
   z-index: 1;
 }
 
@@ -228,7 +251,9 @@ function formatDate(dateStr?: string): string {
 }
 
 .fm-list-row:hover {
-  background: var(--color-surface-hover);
+  background:
+    radial-gradient(circle at left, rgba(59, 130, 246, 0.06), transparent 22%),
+    var(--color-surface-hover);
 }
 
 .fm-list-row:hover .fm-list-menu-btn,
@@ -359,6 +384,14 @@ function formatDate(dateStr?: string): string {
 @media (hover: none), (pointer: coarse) {
   .fm-list-menu-btn { opacity: 1; }
   .fm-list-trash-btns { opacity: 1; }
+
+  .fm-list-wrapper::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .fm-list-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.16);
+  }
 }
 
 @media (max-width: 768px) {
