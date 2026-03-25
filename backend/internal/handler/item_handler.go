@@ -119,6 +119,51 @@ func (h *ItemHandler) ListItems(c *fiber.Ctx) error {
 	})
 }
 
+// ListRecentItems handles GET /api/v1/items/recent
+func (h *ItemHandler) ListRecentItems(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	limit := c.QueryInt("limit", 20)
+	items, err := h.itemService.ListRecentItems(userID, limit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: "Failed to list recent items", Code: "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    items,
+	})
+}
+
+// ListStarredItems handles GET /api/v1/items/starred
+func (h *ItemHandler) ListStarredItems(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	items, err := h.itemService.ListStarredItems(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: "Failed to list starred items", Code: "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    items,
+	})
+}
+
 // GetItem handles GET /api/v1/items/:id
 func (h *ItemHandler) GetItem(c *fiber.Ctx) error {
 	userID, err := uuid.Parse(c.Locals("userID").(string))
@@ -201,6 +246,125 @@ func (h *ItemHandler) UpdateItem(c *fiber.Ctx) error {
 	return c.JSON(dto.SuccessResponse{
 		Success: true,
 		Data:    service.ToItemResponse(item, 0),
+	})
+}
+
+// AddStar handles POST /api/v1/items/:id/star
+func (h *ItemHandler) AddStar(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid item ID", Code: "INVALID_PARAM",
+		})
+	}
+
+	if err := h.itemService.AddStar(userID, id); err != nil {
+		status := fiber.StatusInternalServerError
+		code := "INTERNAL_ERROR"
+		if err.Error() == "item not found" {
+			status = fiber.StatusNotFound
+			code = "NOT_FOUND"
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: code,
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    fiber.Map{"message": "Item starred"},
+	})
+}
+
+// RemoveStar handles DELETE /api/v1/items/:id/star
+func (h *ItemHandler) RemoveStar(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid item ID", Code: "INVALID_PARAM",
+		})
+	}
+
+	if err := h.itemService.RemoveStar(userID, id); err != nil {
+		status := fiber.StatusInternalServerError
+		code := "INTERNAL_ERROR"
+		if err.Error() == "item not found" {
+			status = fiber.StatusNotFound
+			code = "NOT_FOUND"
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: code,
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    fiber.Map{"message": "Item unstarred"},
+	})
+}
+
+// TrackItemActivity handles POST /api/v1/items/:id/activity
+func (h *ItemHandler) TrackItemActivity(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid item ID", Code: "INVALID_PARAM",
+		})
+	}
+
+	var req dto.TrackItemActivityRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid request body", Code: "INVALID_BODY",
+		})
+	}
+
+	if errs := h.validator.Validate(&req); errs != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false, "errors": errs, "code": "VALIDATION_ERROR",
+		})
+	}
+
+	if err := h.itemService.TrackItemActivity(userID, id, req.Type); err != nil {
+		status := fiber.StatusInternalServerError
+		code := "INTERNAL_ERROR"
+		switch err.Error() {
+		case "item not found":
+			status = fiber.StatusNotFound
+			code = "NOT_FOUND"
+		case "recent is only supported for files":
+			status = fiber.StatusBadRequest
+			code = "IS_FOLDER"
+		}
+		return c.Status(status).JSON(dto.ErrorResponse{
+			Success: false, Error: err.Error(), Code: code,
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    fiber.Map{"message": "Activity tracked"},
 	})
 }
 

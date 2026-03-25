@@ -7,11 +7,6 @@
             <Icon :icon="isTrashView ? 'mdi:trash-can' : 'mdi:folder-open-outline'" />
           </n-icon>
         </template>
-        <template v-if="!isTrashView" #extra>
-          <n-button size="small" @click="$emit('create-folder-click')">
-            New folder
-          </n-button>
-        </template>
       </n-empty>
     </div>
 
@@ -53,6 +48,18 @@
             <span v-else>{{ formatSize(item.size) }}</span>
           </template>
         </div>
+        <div v-if="!isTrashView" class="fm-item-quick-actions">
+          <button
+            class="fm-quick-action-btn"
+            :class="{ active: isStarred(item.id) }"
+            :aria-label="isStarred(item.id) ? 'Unstar item' : 'Star item'"
+            @click.stop="$emit('action', { type: 'toggle-star', item })"
+          >
+            <n-icon size="16">
+              <Icon :icon="isStarred(item.id) ? 'mdi:star' : 'mdi:star-outline'" />
+            </n-icon>
+          </button>
+        </div>
         <button
           class="fm-item-menu-btn"
           :aria-label="isTrashView ? 'Item actions' : 'Open menu'"
@@ -85,20 +92,23 @@ import { Icon } from '@iconify/vue'
 import FileIcon from './FileIcon.vue'
 import type { Item } from '~/types/folder'
 import { useFolderStore } from '~/stores/folder'
+import { useQuickAccessStore } from '~/stores/quick-access'
 
 defineProps<{
   displayItems: Item[]
   displayLoading: boolean
   isTrashView: boolean
+  showCreateFolderAction?: boolean
 }>()
 
 defineEmits<{
   (e: 'action', event: GridActionEvent): void
-  (e: 'create-folder-click'): void
 }>()
 
 const folderStore = useFolderStore()
+const quickAccessStore = useQuickAccessStore()
 const highlightedId = computed(() => folderStore.highlightedId)
+const isStarred = (itemId: string) => quickAccessStore.isStarred(itemId)
 
 // Auto-scroll to highlighted item when it changes and the item is in the DOM
 watch(highlightedId, async (id) => {
@@ -121,7 +131,7 @@ watch(highlightedId, async (id) => {
 })
 
 interface GridActionEvent {
-  type: 'open' | 'menu' | 'context' | 'trash-context' | 'restore' | 'permanent-delete'
+  type: 'open' | 'menu' | 'context' | 'trash-context' | 'restore' | 'permanent-delete' | 'toggle-star'
   item: Item
   element?: HTMLElement
   eventX?: number
@@ -215,6 +225,48 @@ function formatDeletedDate(dateStr?: string): string {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   margin-top: 0.25rem;
+}
+
+.fm-item-quick-actions {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.fm-item:hover .fm-item-quick-actions {
+  opacity: 1;
+}
+
+.fm-item-quick-actions:has(.fm-quick-action-btn.active) {
+  opacity: 1;
+}
+
+.fm-quick-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.fm-quick-action-btn.active {
+  color: #fbbf24;
+}
+
+.fm-quick-action-btn:hover {
+  color: var(--color-text-primary);
+  background: rgba(30, 41, 59, 0.92);
 }
 
 .fm-item-menu-btn {

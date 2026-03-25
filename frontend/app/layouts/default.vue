@@ -143,12 +143,14 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
+import { useAuthStore } from '~/stores/auth'
 import { useFolderStore } from '~/stores/folder'
 import type { FolderTreeNode } from '~/types/folder'
 import SearchPalette from '~/components/search/SearchPalette.vue'
 import '~/assets/css/search-palette.css'
 
-const { currentUser } = useAuth()
+const authStore = useAuthStore()
+const { currentUser } = storeToRefs(authStore)
 const {
   loadItems,
   loadFolderTree,
@@ -160,6 +162,9 @@ const {
   currentFolderId,
   treeLoading,
 } = useFolder()
+const {
+  refresh: refreshQuickAccess,
+} = useQuickAccess()
 
 const route = useRoute()
 const store = useFolderStore()
@@ -182,6 +187,10 @@ watch(() => route.query.folder, (newFolderId) => {
 // Watch for trash view changes
 watch(() => route.query.view, (view) => {
   store.setTrashView(view === 'trash')
+}, { immediate: true })
+
+watch(currentUser, async () => {
+  await refreshQuickAccess()
 }, { immediate: true })
 
 const router = useRouter()
@@ -215,6 +224,7 @@ onMounted(async () => {
 
   // Load tree first
   await loadFolderTree()
+  await refreshQuickAccess()
 
   // Load items - root or folder from URL
   const folderId = route.query.folder as string | undefined
@@ -311,6 +321,16 @@ async function handleDeleteFolder() {
 .sidebar-header {
   padding: 1.25rem 1rem;
   border-bottom: 1px solid var(--color-border);
+}
+
+.tree-root-item:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.tree-root-item.active {
+  background: rgba(59, 130, 246, 0.14);
+  color: var(--color-primary);
 }
 
 .sidebar-logo {

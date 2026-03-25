@@ -1,3 +1,6 @@
+import { useAuthStore } from '~/stores/auth'
+import { useAuth } from '~/composables/useAuth'
+
 export default defineNuxtRouteMiddleware(async (to) => {
     const authStore = useAuthStore()
 
@@ -13,4 +16,3 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
     return navigateTo('/auth/login')
 })
-

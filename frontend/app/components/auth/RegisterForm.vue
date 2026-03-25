@@ -151,6 +151,8 @@
 </template>
 
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
+
 const emit = defineEmits<{
   success: []
   error: [message: string]

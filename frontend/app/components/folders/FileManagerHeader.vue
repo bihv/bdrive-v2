@@ -2,20 +2,55 @@
   <div class="fm-header">
     <div class="fm-breadcrumb">
       <template v-if="isTrashView">
-        <span class="trash-title">Trash</span>
+        <span class="trash-title">{{ viewTitle }}</span>
       </template>
-      <template v-else>
+      <template v-else-if="activeView === 'all' && displayBreadcrumbs.length > 0">
         <n-breadcrumb>
           <n-breadcrumb-item
-            v-for="(crumb, i) in breadcrumbs"
+            v-for="(crumb, i) in displayBreadcrumbs"
             :key="i"
-            :clickable="i < breadcrumbs.length - 1"
-            @click="$emit('breadcrumb-click', i)"
+            :clickable="crumb.clickable"
+            @click="crumb.clickable && $emit('breadcrumb-click', crumb.originalIndex)"
           >
-            {{ crumb.name }}
+            <n-dropdown
+              v-if="crumb.isEllipsis"
+              trigger="click"
+              :options="collapsedBreadcrumbOptions"
+              @select="handleCollapsedBreadcrumbSelect"
+            >
+              <button
+                class="crumb-ellipsis-btn"
+                type="button"
+                aria-label="Show collapsed folders"
+              >
+                ...
+              </button>
+            </n-dropdown>
+            <span
+              v-else
+              class="crumb-label"
+              :title="crumb.name"
+            >
+              {{ crumb.name }}
+            </span>
           </n-breadcrumb-item>
         </n-breadcrumb>
       </template>
+      <template v-else-if="activeView === 'all'">
+        <span class="trash-title">{{ viewTitle }}</span>
+      </template>
+    </div>
+    <div v-if="!isTrashView" class="fm-tabs">
+      <button
+        v-for="tab in tabs"
+        :key="tab.key"
+        class="fm-tab"
+        :class="{ active: tab.key === activeView }"
+        @click="$emit('view-change', tab.key)"
+      >
+        <n-icon size="16"><Icon :icon="tab.icon" /></n-icon>
+        <span>{{ tab.label }}</span>
+      </button>
     </div>
     <div class="fm-actions">
       <!-- Search button — opens SearchPalette -->
@@ -106,18 +141,79 @@ import { useSearchPalette } from '~/composables/useSearchPalette'
 const { viewMode, setViewMode } = useFileManagerView()
 const { open: openSearchPalette } = useSearchPalette()
 
-defineProps<{
-  isTrashView: boolean
-  breadcrumbs: BreadcrumbItem[]
-  hasTrashItems: boolean
-}>()
-
-defineEmits<{
+const emit = defineEmits<{
   (e: 'breadcrumb-click', index: number): void
   (e: 'empty-trash'): void
   (e: 'upload-click'): void
   (e: 'create-folder-click'): void
+  (e: 'view-change', view: 'all' | 'recent' | 'starred'): void
 }>()
+
+interface DisplayBreadcrumbItem extends BreadcrumbItem {
+  originalIndex: number
+  clickable: boolean
+  isEllipsis?: boolean
+}
+
+const tabs = [
+  { key: 'all', label: 'All', icon: 'mdi:folder-multiple-outline' },
+  { key: 'recent', label: 'Recent', icon: 'mdi:history' },
+  { key: 'starred', label: 'Starred', icon: 'mdi:star-outline' },
+] as const
+
+const props = defineProps<{
+  isTrashView: boolean
+  breadcrumbs: BreadcrumbItem[]
+  hasTrashItems: boolean
+  activeView: 'all' | 'recent' | 'starred' | 'trash'
+  viewTitle: string
+}>()
+
+const displayBreadcrumbs = computed<DisplayBreadcrumbItem[]>(() => {
+  if (props.activeView !== 'all') return []
+  if (props.breadcrumbs.length <= 1) return []
+
+  const mapped = props.breadcrumbs.map((crumb, index) => ({
+    ...crumb,
+    originalIndex: index,
+    clickable: index < props.breadcrumbs.length - 1,
+  }))
+
+  if (mapped.length <= 4) {
+    return mapped
+  }
+
+  return [
+    mapped[0],
+    {
+      id: '__ellipsis__',
+      name: '...',
+      path: '',
+      originalIndex: -1,
+      clickable: false,
+      isEllipsis: true,
+    },
+    mapped[mapped.length - 2],
+    mapped[mapped.length - 1],
+  ]
+})
+
+const collapsedBreadcrumbOptions = computed(() => {
+  if (props.breadcrumbs.length <= 4) return []
+
+  return props.breadcrumbs
+    .slice(1, -2)
+    .map((crumb, index) => ({
+      label: crumb.name,
+      key: String(index + 1),
+    }))
+})
+
+function handleCollapsedBreadcrumbSelect(key: string) {
+  const index = Number(key)
+  if (Number.isNaN(index)) return
+  emit('breadcrumb-click', index)
+}
 </script>
 
 <style scoped>
@@ -127,6 +223,70 @@ defineEmits<{
   justify-content: space-between;
   margin-bottom: 1.5rem;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.fm-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+  width: min(100%, 540px);
+}
+
+.crumb-label {
+  display: inline-block;
+  max-width: min(28vw, 220px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.crumb-ellipsis-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  line-height: 1;
+}
+
+.fm-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.8rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+  white-space: nowrap;
+}
+
+.fm-tab.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.fm-tab:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.fm-tab.active:hover,
+.fm-tab.active:focus-visible,
+.fm-tab.active:active {
+  background: var(--color-primary);
+  color: white;
 }
 
 .fm-actions {
@@ -185,6 +345,14 @@ defineEmits<{
   .fm-actions {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .fm-tabs {
+    width: 100%;
+  }
+
+  .crumb-label {
+    max-width: 120px;
   }
 }
 

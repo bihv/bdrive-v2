@@ -1,4 +1,5 @@
 import type { AuthResponse, LoginRequest, RegisterRequest, User } from '~/types/auth'
+import { useAuthStore } from '~/stores/auth'
 
 export function useAuth() {
     const authStore = useAuthStore()

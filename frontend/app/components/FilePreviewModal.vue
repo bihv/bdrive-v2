@@ -164,6 +164,7 @@ import type { PreviewData, PreviewType } from '~/composables/usePreview'
 const message = useMessage()
 const api = useApi()
 const { getPreviewData, getPreviewType, getFileExtension, getMonacoLanguage, previewItemId, previewContext, previewForceType } = usePreview()
+const { track } = useQuickAccess()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -267,12 +268,13 @@ function closePreview() {
 }
 
 function downloadFile() {
-  if (!previewData.value?.url) return
+  if (!previewData.value?.url || !previewItemId.value) return
   const a = document.createElement('a')
   a.href = previewData.value.url
   a.download = previewData.value.name
   a.target = '_blank'
   a.click()
+  track(previewItemId.value, 'download')
 }
 
 async function loadTextContent(url: string) {
@@ -302,6 +304,7 @@ async function saveTextContent() {
     await api.put(`/api/v1/items/${previewItemId.value}/content`, formData)
 
     originalContent.value = textContent.value
+    await track(previewItemId.value, 'update')
     message.success('Changes saved successfully!')
   } catch (e: any) {
     message.error(e?.data?.error || e.message || 'Failed to save file')

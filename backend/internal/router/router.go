@@ -54,6 +54,8 @@ func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handle
 	// Item routes (protected)
 	items := api.Group("/items")
 	items.Use(middleware.AuthMiddleware(accessSecret))
+	items.Get("/recent", itemHandler.ListRecentItems) // Must be before /:id
+	items.Get("/starred", itemHandler.ListStarredItems)
 	items.Get("/tree", itemHandler.GetFolderTree) // Must be before /:id
 	items.Get("/search", itemHandler.Search)      // Must be before /:id
 	items.Post("/folder", itemHandler.CreateFolder)
@@ -64,6 +66,9 @@ func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handle
 	items.Get("/", itemHandler.ListItems)
 	items.Get("/:id", itemHandler.GetItem)
 	items.Get("/:id/preview", itemHandler.GetPreview)
+	items.Post("/:id/star", itemHandler.AddStar)
+	items.Delete("/:id/star", itemHandler.RemoveStar)
+	items.Post("/:id/activity", itemHandler.TrackItemActivity)
 	items.Put("/:id", itemHandler.UpdateItem)
 	items.Put("/:id/content", itemHandler.UpdateItemContent)
 	items.Delete("/:id", itemHandler.DeleteItem)

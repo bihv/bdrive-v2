@@ -8,12 +8,15 @@ export interface ItemActionContext {
   onDeleteRequest: (item: { id: string; name: string }) => void
   onRestore?: (item: Item) => void
   onPermanentDelete?: (item: Item) => void
+  onTrackAccess?: (itemId: string, type: 'open') => void | Promise<void>
+  onToggleStar?: (item: Item) => void | Promise<void>
+  isStarred?: (itemId: string) => boolean
 }
 
 export type MenuOption = Record<string, any>
 
 export function useItemActions(context: ItemActionContext) {
-  const { displayItems, isTrashView, onNavigate, onDeleteRequest, onRestore, onPermanentDelete } = context
+  const { displayItems, isTrashView, onNavigate, onDeleteRequest, onRestore, onPermanentDelete, onTrackAccess, onToggleStar, isStarred } = context
   const { getPreviewType, openPreview, openPreviewAs } = usePreview()
 
   // State
@@ -53,6 +56,11 @@ export function useItemActions(context: ItemActionContext) {
           opts.push({ label: 'Open', key: 'preview' })
         }
       }
+      opts.push({ type: 'divider', key: 'd-star' })
+      opts.push({
+        label: isStarred?.(item?.id || '') ? 'Remove star' : 'Add star',
+        key: 'toggle-star',
+      })
     }
     opts.push({ type: 'divider', key: 'd0' })
     opts.push({ label: 'Rename', key: 'rename' })
@@ -98,6 +106,7 @@ export function useItemActions(context: ItemActionContext) {
     const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
     if (!item) return
     if (key === 'preview') {
+      onTrackAccess?.(item.id, 'open')
       openPreview({ id: item.id, name: item.name }, displayItems.value)
       return
     }
@@ -111,8 +120,13 @@ export function useItemActions(context: ItemActionContext) {
       }
       const forceType = typeMap[key] as any
       if (forceType) {
+        onTrackAccess?.(item.id, 'open')
         openPreviewAs({ id: item.id, name: item.name }, forceType, displayItems.value)
       }
+      return
+    }
+    if (key === 'toggle-star') {
+      onToggleStar?.(item)
       return
     }
     if (key === 'rename') {
@@ -146,6 +160,7 @@ export function useItemActions(context: ItemActionContext) {
     if (item.is_folder) {
       onNavigate(item.id, item.path)
     } else {
+      onTrackAccess?.(item.id, 'open')
       openPreview({ id: item.id, name: item.name }, displayItems.value)
     }
   }
@@ -176,6 +191,10 @@ export function useItemActions(context: ItemActionContext) {
     onPermanentDelete?.(item)
   }
 
+  function toggleStarForItem(item: Item) {
+    onToggleStar?.(item)
+  }
+
   return {
     // State
     showContextMenu: readonly(showContextMenu),
@@ -203,5 +222,6 @@ export function useItemActions(context: ItemActionContext) {
     requestDelete,
     closeMenus,
     applyTrashAction,
+    toggleStarForItem,
   }
 }

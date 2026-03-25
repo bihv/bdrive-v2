@@ -1,5 +1,6 @@
 import type { ApiResponse, ApiError } from '~/types/auth'
-import type { Item, RestoreItemRequest, SearchResult } from '~/types/folder'
+import type { Item, RecentItem, RestoreItemRequest, SearchResult } from '~/types/folder'
+import { useAuthStore } from '~/stores/auth'
 
 export function useApi() {
     const config = useRuntimeConfig()
@@ -162,6 +163,38 @@ export function useApi() {
         )
     }
 
+    async function getRecentItems(limit = 20): Promise<RecentItem[]> {
+        return apiFetch<RecentItem[]>(`/api/v1/items/recent?limit=${limit}`, {
+            method: 'GET',
+        })
+    }
+
+    async function getStarredItems(): Promise<Item[]> {
+        return apiFetch<Item[]>('/api/v1/items/starred', {
+            method: 'GET',
+        })
+    }
+
+    async function starItem(id: string): Promise<void> {
+        return apiFetch<void>(`/api/v1/items/${id}/star`, {
+            method: 'POST',
+            body: JSON.stringify({}),
+        })
+    }
+
+    async function unstarItem(id: string): Promise<void> {
+        return apiFetch<void>(`/api/v1/items/${id}/star`, {
+            method: 'DELETE',
+        })
+    }
+
+    async function trackItemActivity(id: string, type: 'open' | 'download' | 'update'): Promise<void> {
+        return apiFetch<void>(`/api/v1/items/${id}/activity`, {
+            method: 'POST',
+            body: JSON.stringify({ type }),
+        })
+    }
+
     return {
         apiFetch,
         post,
@@ -174,5 +207,10 @@ export function useApi() {
         restoreItem,
         permanentDeleteItem,
         searchItems,
+        getRecentItems,
+        getStarredItems,
+        starItem,
+        unstarItem,
+        trackItemActivity,
     }
 }

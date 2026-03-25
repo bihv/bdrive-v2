@@ -146,3 +146,13 @@ type SearchResultResponse struct {
 	Size      int64   `json:"size,omitempty"`
 	UpdatedAt string  `json:"updated_at,omitempty"`
 }
+
+type TrackItemActivityRequest struct {
+	Type string `json:"type" validate:"required,oneof=open download update"`
+}
+
+type RecentItemResponse struct {
+	ItemResponse
+	LastAccessedAt string `json:"last_accessed_at"`
+	LastEventType  string `json:"last_event_type"`
+}

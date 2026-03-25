@@ -109,3 +109,8 @@ export interface SearchResult {
 }
 
 export type ViewMode = 'grid' | 'list'
+
+export interface RecentItem extends Item {
+    last_accessed_at: string
+    last_event_type: 'open' | 'download' | 'update'
+}

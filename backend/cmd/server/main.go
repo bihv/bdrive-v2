@@ -44,7 +44,7 @@ func main() {
 	db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`)
 
 	// Auto-migrate models
-	if err := db.AutoMigrate(&model.User{}, &model.RefreshToken{}, &model.Item{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.RefreshToken{}, &model.Item{}, &model.ItemStar{}, &model.ItemActivity{}); err != nil {
 		logger.Fatal("Failed to run auto-migration", zap.Error(err))
 	}
 

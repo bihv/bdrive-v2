@@ -9,6 +9,7 @@ interface Props {
   items: Item[]
   displayLoading: boolean
   isTrashView: boolean
+  showCreateFolderAction?: boolean
   actions: ReturnType<typeof import('~/composables/useItemActions').useItemActions>
 }
 
@@ -39,6 +40,7 @@ const {
   propertiesItemId,
   closeMenus,
   applyTrashAction,
+  toggleStarForItem,
 } = props.actions
 
 watch(propertiesItemId, (id) => {
@@ -81,6 +83,9 @@ function onAction(event: {
       requestRename()
       emit('rename-request')
       break
+    case 'toggle-star':
+      toggleStarForItem(item)
+      break
   }
 }
 </script>
@@ -92,6 +97,7 @@ function onAction(event: {
       :display-items="items"
       :display-loading="displayLoading"
       :is-trash-view="isTrashView"
+      :show-create-folder-action="showCreateFolderAction"
       @action="onAction"
     />
     <FileManagerList
@@ -99,6 +105,7 @@ function onAction(event: {
       :display-items="items"
       :display-loading="displayLoading"
       :is-trash-view="isTrashView"
+      :show-create-folder-action="showCreateFolderAction"
       @action="onAction"
     />
 

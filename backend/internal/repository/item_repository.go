@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -15,6 +16,12 @@ import (
 type ItemRepository struct {
 	db  *gorm.DB
 	log *zap.Logger
+}
+
+type ItemActivityRecord struct {
+	model.Item
+	LastEventType  string
+	LastAccessedAt time.Time
 }
 
 // NewItemRepository creates a new ItemRepository.
@@ -365,4 +372,76 @@ func (r *ItemRepository) Search(userID uuid.UUID, query string, limit int) ([]mo
 		Find(&items).Error
 
 	return items, err
+}
+
+func (r *ItemRepository) ListStarred(userID uuid.UUID) ([]model.Item, error) {
+	var items []model.Item
+	err := r.db.
+		Table("items").
+		Select("items.*").
+		Joins("INNER JOIN item_stars ON item_stars.item_id = items.id AND item_stars.user_id = ?", userID).
+		Where("items.user_id = ? AND items.deleted_at IS NULL", userID).
+		Order("item_stars.created_at DESC, items.name ASC").
+		Find(&items).Error
+	return items, err
+}
+
+func (r *ItemRepository) UpsertStar(userID, itemID uuid.UUID) error {
+	star := model.ItemStar{
+		UserID: userID,
+		ItemID: itemID,
+	}
+	return r.db.
+		Where("user_id = ? AND item_id = ?", userID, itemID).
+		FirstOrCreate(&star).Error
+}
+
+func (r *ItemRepository) DeleteStar(userID, itemID uuid.UUID) error {
+	return r.db.Where("user_id = ? AND item_id = ?", userID, itemID).Delete(&model.ItemStar{}).Error
+}
+
+func (r *ItemRepository) ListRecentFiles(userID uuid.UUID, limit int) ([]ItemActivityRecord, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	var items []ItemActivityRecord
+	err := r.db.
+		Table("items").
+		Select("items.*, item_activities.last_event_type, item_activities.last_accessed_at").
+		Joins("INNER JOIN item_activities ON item_activities.item_id = items.id AND item_activities.user_id = ?", userID).
+		Where("items.user_id = ? AND items.deleted_at IS NULL AND items.is_folder = false", userID).
+		Order("item_activities.last_accessed_at DESC").
+		Limit(limit).
+		Scan(&items).Error
+	return items, err
+}
+
+func (r *ItemRepository) UpsertActivity(userID, itemID uuid.UUID, eventType string, accessedAt time.Time) error {
+	activity := model.ItemActivity{
+		UserID:         userID,
+		ItemID:         itemID,
+		LastEventType:  eventType,
+		LastAccessedAt: accessedAt,
+	}
+
+	return r.db.
+		Where("user_id = ? AND item_id = ?", userID, itemID).
+		Assign(model.ItemActivity{
+			LastEventType:  eventType,
+			LastAccessedAt: accessedAt,
+		}).
+		FirstOrCreate(&activity).Error
+}
+
+func (r *ItemRepository) DeleteAccessDataForItem(userID, itemID uuid.UUID) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND item_id = ?", userID, itemID).Delete(&model.ItemStar{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND item_id = ?", userID, itemID).Delete(&model.ItemActivity{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }

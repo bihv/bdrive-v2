@@ -5,7 +5,10 @@
       :is-trash-view="isTrashView"
       :breadcrumbs="breadcrumbs"
       :has-trash-items="trashItems.length > 0"
+      :active-view="activeView"
+      :view-title="viewTitle"
       @breadcrumb-click="onBreadcrumbClick"
+      @view-change="onViewChange"
       @empty-trash="handleEmptyTrash"
       @upload-click="showUploadFile = true"
       @create-folder-click="showCreateFolder = true"
@@ -16,6 +19,7 @@
       :items="displayItems"
       :display-loading="displayLoading"
       :is-trash-view="isTrashView"
+      :show-create-folder-action="activeView === 'all'"
       :actions="actions"
       @create-folder-click="showCreateFolder = true"
     />
@@ -89,17 +93,53 @@ const {
 
 const folderStore = useFolderStore()
 const { isTrashView, trashItems, trashLoading } = storeToRefs(folderStore)
+const {
+  refresh: refreshQuickAccess,
+  track,
+  toggleStar,
+  removeItem: removeQuickAccessItem,
+  recentItems,
+  starredItems,
+  loading: quickAccessLoading,
+  isStarred,
+} = useQuickAccess()
 
 const api = useApi()
 const message = useMessage()
 const dialog = useDialog()
+const route = useRoute()
+const router = useRouter()
+
+const activeView = computed<'all' | 'recent' | 'starred' | 'trash'>(() => {
+  const view = route.query.view
+  if (view === 'recent' || view === 'starred' || view === 'trash') return view
+  return 'all'
+})
+
+const viewTitle = computed(() => {
+  switch (activeView.value) {
+    case 'recent':
+      return 'Recent'
+    case 'starred':
+      return 'Starred'
+    case 'trash':
+      return 'Trash'
+    default:
+      return 'All files'
+  }
+})
 
 const displayItems = computed(() => {
-  return isTrashView.value ? trashItems.value : items.value
+  if (activeView.value === 'trash') return trashItems.value
+  if (activeView.value === 'recent') return recentItems.value
+  if (activeView.value === 'starred') return starredItems.value
+  return items.value
 })
 
 const displayLoading = computed(() => {
-  return isTrashView.value ? trashLoading.value : loading.value
+  if (activeView.value === 'trash') return trashLoading.value
+  if (activeView.value === 'recent' || activeView.value === 'starred') return quickAccessLoading.value
+  return loading.value
 })
 
 const showCreateFolder = ref(false)
@@ -126,6 +166,16 @@ const actions = useItemActions({
   },
   onRestore: (item) => handleRestore(item),
   onPermanentDelete: (item) => handlePermanentDelete(item),
+  onTrackAccess: async (itemId) => {
+    const item = displayItems.value.find(candidate => candidate.id === itemId)
+    if (!item || item.is_folder) return
+    await track(itemId, 'open')
+  },
+  onToggleStar: async (item) => {
+    await toggleStar(item.id)
+    message.success(isStarred(item.id) ? 'Added to starred' : 'Removed from starred')
+  },
+  isStarred,
 })
 
 const showRenameDialog = actions.showRenameDialog
@@ -137,11 +187,20 @@ function onBreadcrumbClick(index: number) {
   navigateToFolder(crumb.id, crumb.path)
 }
 
+function onViewChange(view: 'all' | 'recent' | 'starred') {
+  if (view === 'all') {
+    router.push({ path: '/', query: currentFolderId.value ? { folder: currentFolderId.value } : {} })
+    return
+  }
+  router.push({ path: '/', query: { view } })
+}
+
 async function handleCreate(name: string, parentId?: string) {
   try {
     await createFolder({ name, parent_id: parentId })
     message.success('Folder created')
     showCreateFolder.value = false
+    await refreshQuickAccess()
   } catch (e: any) {
     message.error(e?.data?.error || 'Failed to create folder')
   }
@@ -154,6 +213,7 @@ async function handleRename(name: string) {
     message.success('Renamed successfully')
     actions.showRenameDialog.value = false
     await loadItems(currentFolderId.value)
+    await refreshQuickAccess()
   } catch (e: any) {
     message.error(e?.data?.error || 'Failed to rename')
   }
@@ -165,6 +225,8 @@ async function handleDelete() {
     await deleteItem(contextTarget.value.id)
     message.success('Deleted successfully')
     showDeleteDialog.value = false
+    removeQuickAccessItem(contextTarget.value.id)
+    await refreshQuickAccess()
   } catch (e: any) {
     message.error(e?.data?.error || 'Failed to delete')
   }
@@ -172,7 +234,10 @@ async function handleDelete() {
 
 async function handleUpload(file: File, parentId?: string, onProgress?: (progress: number) => void) {
   try {
-    await uploadFile(file, parentId || undefined, onProgress)
+    const uploadedItem = await uploadFile(file, parentId || undefined, onProgress)
+    if (uploadedItem?.id) {
+      await track(uploadedItem.id, 'update')
+    }
     message.success('File uploaded successfully')
     showUploadFile.value = false
   } catch (e: any) {
@@ -199,6 +264,7 @@ async function handleRestore(item: Item) {
     await api.restoreItem(item.id)
     message.success('Restored successfully')
     folderStore.removeTrashItem(item.id)
+    await refreshQuickAccess()
   } catch (e: any) {
     const code = e?.data?.code
     if (code === 'PARENT_DELETED') {
@@ -223,6 +289,7 @@ async function handleRestoreWithFolder(folderId: string | null) {
     folderStore.removeTrashItem(restoreTarget.value.id)
     showRestoreDialog.value = false
     restoreTarget.value = null
+    await refreshQuickAccess()
   } catch (e: any) {
     if (e?.data?.code === 'NAME_CONFLICT' && restoreTarget.value) {
       newItemName.value = restoreTarget.value.name
@@ -243,6 +310,7 @@ async function handleRestoreWithRename() {
     folderStore.removeTrashItem(restoreTarget.value.id)
     actions.showRenameDialog.value = false
     restoreTarget.value = null
+    await refreshQuickAccess()
   } catch (e: any) {
     message.error(e?.data?.error || 'Failed to restore')
   }
@@ -259,6 +327,8 @@ async function handlePermanentDelete(item: Item) {
         await api.permanentDeleteItem(item.id)
         message.success('Deleted permanently')
         folderStore.removeTrashItem(item.id)
+        removeQuickAccessItem(item.id)
+        await refreshQuickAccess()
       } catch (e: any) {
         message.error(e?.data?.error || 'Failed to delete permanently')
       }
@@ -304,6 +374,12 @@ async function handleEmptyTrash() {
 watch(isTrashView, async (isTrash) => {
   if (isTrash) {
     await loadTrash()
+  }
+}, { immediate: true })
+
+watch(activeView, async (view) => {
+  if (view === 'recent' || view === 'starred') {
+    await refreshQuickAccess()
   }
 }, { immediate: true })
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -227,6 +228,85 @@ func (s *ItemService) SearchItems(userID uuid.UUID, query string, limit int) ([]
 	return items, nil
 }
 
+func (s *ItemService) ListStarredItems(userID uuid.UUID) ([]dto.ItemResponse, error) {
+	items, err := s.itemRepo.ListStarred(userID)
+	if err != nil {
+		s.log.Error("Failed to list starred items", zap.Error(err))
+		return nil, fmt.Errorf("internal error")
+	}
+	return ToItemResponseList(items), nil
+}
+
+func (s *ItemService) ListRecentItems(userID uuid.UUID, limit int) ([]dto.RecentItemResponse, error) {
+	records, err := s.itemRepo.ListRecentFiles(userID, limit)
+	if err != nil {
+		s.log.Error("Failed to list recent items", zap.Error(err))
+		return nil, fmt.Errorf("internal error")
+	}
+
+	responses := make([]dto.RecentItemResponse, 0, len(records))
+	for i := range records {
+		itemResp := ToItemResponse(&records[i].Item, 0)
+		responses = append(responses, dto.RecentItemResponse{
+			ItemResponse:    *itemResp,
+			LastAccessedAt: records[i].LastAccessedAt.UTC().Format("2006-01-02T15:04:05Z"),
+			LastEventType:  records[i].LastEventType,
+		})
+	}
+	return responses, nil
+}
+
+func (s *ItemService) AddStar(userID, itemID uuid.UUID) error {
+	item, err := s.itemRepo.FindByID(itemID, userID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("item not found")
+		}
+		return fmt.Errorf("internal error")
+	}
+
+	if err := s.itemRepo.UpsertStar(userID, item.ID); err != nil {
+		s.log.Error("Failed to star item", zap.Error(err))
+		return fmt.Errorf("internal error")
+	}
+	return nil
+}
+
+func (s *ItemService) RemoveStar(userID, itemID uuid.UUID) error {
+	if _, err := s.itemRepo.FindByID(itemID, userID); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("item not found")
+		}
+		return fmt.Errorf("internal error")
+	}
+
+	if err := s.itemRepo.DeleteStar(userID, itemID); err != nil {
+		s.log.Error("Failed to unstar item", zap.Error(err))
+		return fmt.Errorf("internal error")
+	}
+	return nil
+}
+
+func (s *ItemService) TrackItemActivity(userID, itemID uuid.UUID, eventType string) error {
+	item, err := s.itemRepo.FindByID(itemID, userID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("item not found")
+		}
+		return fmt.Errorf("internal error")
+	}
+
+	if item.IsFolder {
+		return fmt.Errorf("recent is only supported for files")
+	}
+
+	if err := s.itemRepo.UpsertActivity(userID, itemID, eventType, time.Now().UTC()); err != nil {
+		s.log.Error("Failed to track item activity", zap.Error(err))
+		return fmt.Errorf("internal error")
+	}
+	return nil
+}
+
 // UpdateItem updates an item's mutable fields.
 func (s *ItemService) UpdateItem(id, userID uuid.UUID, req *dto.UpdateItemRequest) (*model.Item, error) {
 	item, err := s.itemRepo.FindByID(id, userID)
@@ -293,9 +373,11 @@ func (s *ItemService) DeleteItem(id, userID uuid.UUID) error {
 	}
 
 	if item.IsFolder {
+		_ = s.itemRepo.DeleteAccessDataForItem(userID, id)
 		return s.itemRepo.CascadeDelete(id, userID)
 	}
 
+	_ = s.itemRepo.DeleteAccessDataForItem(userID, id)
 	return s.itemRepo.Delete(id, userID)
 }
 

@@ -7,11 +7,6 @@
             <Icon :icon="isTrashView ? 'mdi:trash-can' : 'mdi:folder-open-outline'" />
           </n-icon>
         </template>
-        <template v-if="!isTrashView" #extra>
-          <n-button size="small" @click="$emit('create-folder-click')">
-            New folder
-          </n-button>
-        </template>
       </n-empty>
     </div>
 
@@ -85,8 +80,20 @@
                     </template>
                   </n-button>
                 </div>
+                <div v-if="!isTrashView" class="fm-list-quick-btns">
+                  <button
+                    class="fm-list-icon-btn"
+                    :class="{ active: isStarred(item.id) }"
+                    :aria-label="isStarred(item.id) ? 'Unstar item' : 'Star item'"
+                    @click.stop="$emit('action', { type: 'toggle-star', item })"
+                  >
+                    <n-icon size="16">
+                      <Icon :icon="isStarred(item.id) ? 'mdi:star' : 'mdi:star-outline'" />
+                    </n-icon>
+                  </button>
+                </div>
                 <button
-                  v-else
+                  v-if="!isTrashView"
                   class="fm-list-menu-btn"
                   :aria-label="isTrashView ? 'Item actions' : 'Open menu'"
                   @click.stop="$emit('action', { type: 'menu', item, element: $event.currentTarget as HTMLElement })"
@@ -109,20 +116,23 @@ import { Icon } from '@iconify/vue'
 import FileIcon from './FileIcon.vue'
 import type { Item } from '~/types/folder'
 import { useFolderStore } from '~/stores/folder'
+import { useQuickAccessStore } from '~/stores/quick-access'
 
 defineProps<{
   displayItems: Item[]
   displayLoading: boolean
   isTrashView: boolean
+  showCreateFolderAction?: boolean
 }>()
 
 defineEmits<{
   (e: 'action', event: ListActionEvent): void
-  (e: 'create-folder-click'): void
 }>()
 
 const folderStore = useFolderStore()
+const quickAccessStore = useQuickAccessStore()
 const highlightedId = computed(() => folderStore.highlightedId)
+const isStarred = (itemId: string) => quickAccessStore.isStarred(itemId)
 
 // Auto-scroll to highlighted item when it changes and the item is in the DOM
 watch(highlightedId, async (id) => {
@@ -145,7 +155,7 @@ watch(highlightedId, async (id) => {
 })
 
 interface ListActionEvent {
-  type: 'open' | 'menu' | 'context' | 'trash-context' | 'restore' | 'permanent-delete'
+  type: 'open' | 'menu' | 'context' | 'trash-context' | 'restore' | 'permanent-delete' | 'toggle-star'
   item: Item
   element?: HTMLElement
   eventX?: number
@@ -276,6 +286,46 @@ function formatDate(dateStr?: string): string {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 0.25rem;
+}
+
+.fm-list-quick-btns {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.fm-list-row:hover .fm-list-quick-btns {
+  opacity: 1;
+}
+
+.fm-list-quick-btns:has(.fm-list-icon-btn.active) {
+  opacity: 1;
+}
+
+.fm-list-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.fm-list-icon-btn.active {
+  color: #fbbf24;
+}
+
+.fm-list-icon-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
 }
 
 .fm-list-menu-btn {
