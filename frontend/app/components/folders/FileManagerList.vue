@@ -29,8 +29,12 @@
           <tr
             v-for="item in displayItems"
             :key="item.id"
+            :data-item-id="item.id"
             class="fm-list-row"
-            :class="{ 'is-trash': isTrashView }"
+            :class="{
+              'is-trash': isTrashView,
+              'highlighted': item.id === highlightedId
+            }"
             @dblclick="!isTrashView && $emit('action', { type: 'open', item })"
             @contextmenu.prevent="isTrashView
               ? $emit('action', { type: 'trash-context', item, eventX: $event.clientX, eventY: $event.clientY })
@@ -104,6 +108,7 @@
 import { Icon } from '@iconify/vue'
 import FileIcon from './FileIcon.vue'
 import type { Item } from '~/types/folder'
+import { useFolderStore } from '~/stores/folder'
 
 defineProps<{
   displayItems: Item[]
@@ -115,6 +120,29 @@ defineEmits<{
   (e: 'action', event: ListActionEvent): void
   (e: 'create-folder-click'): void
 }>()
+
+const folderStore = useFolderStore()
+const highlightedId = computed(() => folderStore.highlightedId)
+
+// Auto-scroll to highlighted item when it changes and the item is in the DOM
+watch(highlightedId, async (id) => {
+  if (!id) return
+
+  // Retry until item appears in DOM (max ~3s)
+  const start = Date.now()
+  const tryScroll = async () => {
+    await nextTick()
+    const el = document.querySelector(`tr[data-item-id="${id}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      return
+    }
+    if (Date.now() - start < 3000) {
+      setTimeout(tryScroll, 100)
+    }
+  }
+  tryScroll()
+})
 
 interface ListActionEvent {
   type: 'open' | 'menu' | 'context' | 'trash-context' | 'restore' | 'permanent-delete'
@@ -196,6 +224,15 @@ function formatDate(dateStr?: string): string {
 .fm-list-row:hover .fm-list-menu-btn,
 .fm-list-row:hover .fm-list-trash-btns {
   opacity: 1;
+}
+
+/* One accent bar on the row only — inset shadow on every td caused vertical seams */
+.fm-list-row.highlighted td {
+  background: var(--sp-highlight-bg) !important;
+}
+
+.fm-list-row.highlighted td:first-child {
+  box-shadow: inset 3px 0 0 var(--sp-accent);
 }
 
 .fm-list-row td {

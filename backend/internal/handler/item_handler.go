@@ -267,7 +267,7 @@ func (h *ItemHandler) UpdateItemContent(c *fiber.Ctx) error {
 	// Fetch updated item to return
 	item, _, err := h.itemService.GetItem(id, userID)
 	if err != nil {
-		// Even if we fail to fetch, the update succeeded. 
+		// Even if we fail to fetch, the update succeeded.
 		// Return a plain success.
 		return c.JSON(dto.SuccessResponse{
 			Success: true,
@@ -332,6 +332,47 @@ func (h *ItemHandler) GetFolderTree(c *fiber.Ctx) error {
 	return c.JSON(dto.SuccessResponse{
 		Success: true,
 		Data:    tree,
+	})
+}
+
+// Search handles GET /api/v1/items/search?q=<query>&limit=<limit>
+// Returns items matching the query, sorted by relevance.
+func (h *ItemHandler) Search(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Success: false, Error: "Invalid user", Code: "UNAUTHORIZED",
+		})
+	}
+
+	query := c.Query("q")
+	if query == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Success: false, Error: "Missing query parameter 'q'", Code: "INVALID_PARAM",
+		})
+	}
+
+	limit := c.QueryInt("limit", 20)
+	if limit <= 0 {
+		limit = 20
+	}
+
+	items, err := h.itemService.SearchItems(userID, query, limit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Success: false, Error: "Failed to search items", Code: "INTERNAL_ERROR",
+		})
+	}
+
+	// Convert to search result response
+	results := make([]*dto.SearchResultResponse, 0, len(items))
+	for i := range items {
+		results = append(results, service.ToSearchResultResponse(&items[i]))
+	}
+
+	return c.JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    results,
 	})
 }
 

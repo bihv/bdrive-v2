@@ -134,3 +134,15 @@ type TrashItemResponse struct {
 	ItemResponse
 	DeletedAt string `json:"deleted_at"`
 }
+
+// SearchResultResponse is the API response for a search result.
+type SearchResultResponse struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Type      string  `json:"type"` // "file" or "folder"
+	MimeType  *string `json:"mime_type"`
+	ParentID  *string `json:"parent_id"`
+	Path      string  `json:"path"`
+	Size      int64   `json:"size,omitempty"`
+	UpdatedAt string  `json:"updated_at,omitempty"`
+}

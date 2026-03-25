@@ -55,6 +55,7 @@ func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handle
 	items := api.Group("/items")
 	items.Use(middleware.AuthMiddleware(accessSecret))
 	items.Get("/tree", itemHandler.GetFolderTree) // Must be before /:id
+	items.Get("/search", itemHandler.Search)      // Must be before /:id
 	items.Post("/folder", itemHandler.CreateFolder)
 	items.Post("/upload", itemHandler.UploadFile)
 	items.Post("/upload-url", itemHandler.GetPreSignedUploadURL)    // Get pre-signed URL for direct upload

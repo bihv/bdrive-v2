@@ -12,6 +12,7 @@ export const useFolderStore = defineStore('folder', {
         trashItems: [] as Item[],
         isTrashView: false as boolean,
         trashLoading: false as boolean,
+        highlightedId: null as string | null,
     }),
 
     getters: {
@@ -116,6 +117,10 @@ export const useFolderStore = defineStore('folder', {
             if (index !== -1) {
                 this.trashItems[index] = updated
             }
+        },
+
+        setHighlightedId(id: string | null) {
+            this.highlightedId = id
         },
     },
 })

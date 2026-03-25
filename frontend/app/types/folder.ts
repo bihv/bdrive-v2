@@ -95,3 +95,17 @@ export interface RestoreItemRequest {
     targetParentID?: string
     newName?: string
 }
+
+// Search result type for SearchPalette
+export interface SearchResult {
+    id: string
+    name: string
+    type: 'file' | 'folder'
+    mime_type: string | null
+    parent_id: string | null
+    path: string
+    size?: number
+    updated_at?: string
+}
+
+export type ViewMode = 'grid' | 'list'

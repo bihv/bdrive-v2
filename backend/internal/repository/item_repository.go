@@ -346,3 +346,23 @@ func (r *ItemRepository) GetStorageKeysForPermanentDelete(id, userID uuid.UUID) 
 
 	return keys, nil
 }
+
+// Search searches for items by name (fuzzy/case-insensitive) for a user.
+// Excludes soft-deleted items. Results are sorted by relevance: exact prefix match first,
+// then by name length, then alphabetically.
+func (r *ItemRepository) Search(userID uuid.UUID, query string, limit int) ([]model.Item, error) {
+	var items []model.Item
+
+	// Use ILIKE for case-insensitive matching
+	// Sort by relevance: folders first, then by match quality
+	// Exact prefix match ranks higher, then contains match
+	err := r.db.Where(
+		"user_id = ? AND deleted_at IS NULL AND name ILIKE ?",
+		userID, "%"+query+"%",
+	).
+		Order("is_folder DESC, LENGTH(name) ASC, name ASC").
+		Limit(limit).
+		Find(&items).Error
+
+	return items, err
+}

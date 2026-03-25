@@ -18,6 +18,22 @@
       </template>
     </div>
     <div class="fm-actions">
+      <!-- Search button — opens SearchPalette -->
+      <n-tooltip trigger="hover">
+        <template #trigger>
+          <n-button
+            quaternary
+            size="small"
+            @click="openSearchPalette"
+          >
+            <template #icon>
+              <n-icon><Icon icon="mdi:magnify" /></n-icon>
+            </template>
+          </n-button>
+        </template>
+        Search <kbd style="font-size:10px; margin-left: 4px;">⌘K</kbd>
+      </n-tooltip>
+
       <div class="fm-view-switcher">
         <n-tooltip trigger="hover">
           <template #trigger>
@@ -85,8 +101,10 @@
 import { Icon } from '@iconify/vue'
 import type { BreadcrumbItem } from '~/types/folder'
 import { useFileManagerView } from '~/composables/useFileManagerView'
+import { useSearchPalette } from '~/composables/useSearchPalette'
 
 const { viewMode, setViewMode } = useFileManagerView()
+const { open: openSearchPalette } = useSearchPalette()
 
 defineProps<{
   isTrashView: boolean

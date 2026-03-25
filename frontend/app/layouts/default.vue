@@ -134,6 +134,9 @@
 
     <!-- Global File Preview Modal -->
     <FilePreviewModal />
+
+    <!-- Global Search Palette -->
+    <SearchPalette />
   </n-layout>
 </template>
 
@@ -142,6 +145,8 @@ import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
 import { useFolderStore } from '~/stores/folder'
 import type { FolderTreeNode } from '~/types/folder'
+import SearchPalette from '~/components/search/SearchPalette.vue'
+import '~/assets/css/search-palette.css'
 
 const { currentUser } = useAuth()
 const {

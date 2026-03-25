@@ -208,6 +208,25 @@ func (s *ItemService) ListItems(userID uuid.UUID, parentID *uuid.UUID) ([]model.
 	return items, nil
 }
 
+// SearchItems searches for items by name for a user.
+// Returns up to `limit` results, sorted by relevance (folders first, then exact match, then alphabetical).
+func (s *ItemService) SearchItems(userID uuid.UUID, query string, limit int) ([]model.Item, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	items, err := s.itemRepo.Search(userID, query, limit)
+	if err != nil {
+		s.log.Error("Failed to search items", zap.Error(err))
+		return nil, fmt.Errorf("internal error")
+	}
+
+	return items, nil
+}
+
 // UpdateItem updates an item's mutable fields.
 func (s *ItemService) UpdateItem(id, userID uuid.UUID, req *dto.UpdateItemRequest) (*model.Item, error) {
 	item, err := s.itemRepo.FindByID(id, userID)
@@ -389,6 +408,31 @@ func ToItemResponseList(items []model.Item) []dto.ItemResponse {
 		responses = append(responses, *ToItemResponse(&items[i], 0))
 	}
 	return responses
+}
+
+// ToSearchResultResponse converts a model.Item to dto.SearchResultResponse.
+func ToSearchResultResponse(item *model.Item) *dto.SearchResultResponse {
+	var parentID *string
+	if item.ParentID != nil {
+		pid := item.ParentID.String()
+		parentID = &pid
+	}
+
+	itemType := "file"
+	if item.IsFolder {
+		itemType = "folder"
+	}
+
+	return &dto.SearchResultResponse{
+		ID:        item.ID.String(),
+		Name:      item.Name,
+		Type:      itemType,
+		MimeType:  item.MimeType,
+		ParentID:  parentID,
+		Path:      item.Path,
+		Size:      item.Size,
+		UpdatedAt: item.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
 }
 
 // sanitizeName removes path separators from names.
@@ -630,7 +674,7 @@ func (s *ItemService) UpdateFileContent(ctx context.Context, userID uuid.UUID, i
 	// 2. Update DB size
 	newSize := int64(len(content))
 	item.Size = newSize
-	
+
 	if err := s.itemRepo.Update(item); err != nil {
 		s.log.Error("Failed to update item size in DB", zap.Error(err))
 		return fmt.Errorf("failed to update item size in database")

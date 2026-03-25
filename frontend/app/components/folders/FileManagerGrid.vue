@@ -19,8 +19,13 @@
       <div
         v-for="item in displayItems"
         :key="item.id"
+        :data-item-id="item.id"
         class="fm-item"
-        :class="{ 'is-folder': item.is_folder, 'is-trash': isTrashView }"
+        :class="{
+          'is-folder': item.is_folder,
+          'is-trash': isTrashView,
+          'highlighted': item.id === highlightedId
+        }"
         @dblclick="!isTrashView && $emit('action', { type: 'open', item })"
         @contextmenu.prevent="isTrashView
           ? $emit('action', { type: 'trash-context', item, eventX: $event.clientX, eventY: $event.clientY })
@@ -79,6 +84,7 @@
 import { Icon } from '@iconify/vue'
 import FileIcon from './FileIcon.vue'
 import type { Item } from '~/types/folder'
+import { useFolderStore } from '~/stores/folder'
 
 defineProps<{
   displayItems: Item[]
@@ -90,6 +96,29 @@ defineEmits<{
   (e: 'action', event: GridActionEvent): void
   (e: 'create-folder-click'): void
 }>()
+
+const folderStore = useFolderStore()
+const highlightedId = computed(() => folderStore.highlightedId)
+
+// Auto-scroll to highlighted item when it changes and the item is in the DOM
+watch(highlightedId, async (id) => {
+  if (!id) return
+
+  // Retry until item appears in DOM (max ~3s)
+  const start = Date.now()
+  const tryScroll = async () => {
+    await nextTick()
+    const el = document.querySelector(`[data-item-id="${id}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      return
+    }
+    if (Date.now() - start < 3000) {
+      setTimeout(tryScroll, 100)
+    }
+  }
+  tryScroll()
+})
 
 interface GridActionEvent {
   type: 'open' | 'menu' | 'context' | 'trash-context' | 'restore' | 'permanent-delete'

@@ -705,6 +705,11 @@ watch(previewItemId, async (newId) => {
   min-height: 0;
 }
 
+/* Monaco on iOS: floating keyboard button (editor.contrib.iPadShowKeyboard) */
+.preview-editor-container :deep(textarea.iPadShowKeyboard) {
+  display: none !important;
+}
+
 /* Unknown */
 .preview-unknown {
   padding: 2rem;

@@ -1,5 +1,5 @@
 import type { ApiResponse, ApiError } from '~/types/auth'
-import type { Item, RestoreItemRequest } from '~/types/folder'
+import type { Item, RestoreItemRequest, SearchResult } from '~/types/folder'
 
 export function useApi() {
     const config = useRuntimeConfig()
@@ -155,6 +155,13 @@ export function useApi() {
         })
     }
 
+    async function searchItems(query: string, limit = 20): Promise<SearchResult[]> {
+        return apiFetch<SearchResult[]>(
+            `/api/v1/items/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+            { method: 'GET' }
+        )
+    }
+
     return {
         apiFetch,
         post,
@@ -166,5 +173,6 @@ export function useApi() {
         getItem,
         restoreItem,
         permanentDeleteItem,
+        searchItems,
     }
 }
