@@ -24,45 +24,27 @@
       <!-- Folder Tree -->
       <div class="sidebar-content">
         <div class="sidebar-section-title">
-          <span>Thư mục</span>
-          <n-button
-            quaternary
-            circle
-            size="tiny"
-            @click="showCreateFolder = true"
-          >
-            <template #icon>
-              <n-icon><Icon icon="mdi:folder-plus-outline" /></n-icon>
-            </template>
-          </n-button>
+          <span>Điều hướng</span>
         </div>
 
-        <!-- Root item -->
         <div
-          class="tree-root-item"
-          :class="{ active: !currentFolderId && !isTrashView }"
-          @click="navigateToFolder(null, '/')"
+          class="nav-item"
+          :class="{ active: isAllFilesActive }"
+          @click="navigateToRoot"
         >
           <n-icon size="18"><Icon icon="mdi:home-variant" /></n-icon>
           <span>Tất cả file</span>
         </div>
 
-        <ClientOnly>
-          <FolderTree
-            :tree="folderTree"
-            :selected-id="currentFolderId"
-            :loading="treeLoading"
-            @select="onFolderSelect"
-            @create="onCreateInFolder"
-            @rename="onRenameFolder"
-            @delete="onDeleteFolder"
-          />
-        </ClientOnly>
+        <div
+          class="nav-item"
+          :class="{ active: isSettingsActive }"
+          @click="navigateToSettings"
+        >
+          <n-icon size="18"><Icon icon="mdi:cog-outline" /></n-icon>
+          <span>Settings</span>
+        </div>
 
-      </div>
-
-      <!-- Footer: Trash + User info -->
-      <div class="sidebar-footer">
         <div
           class="trash-item"
           :class="{ active: isTrashView }"
@@ -79,6 +61,37 @@
           />
         </div>
 
+        <div class="sidebar-section-title">
+          <span>Thư mục</span>
+          <n-button
+            quaternary
+            circle
+            size="tiny"
+            @click="showCreateFolder = true"
+          >
+            <template #icon>
+              <n-icon><Icon icon="mdi:folder-plus-outline" /></n-icon>
+            </template>
+          </n-button>
+        </div>
+
+        <!-- Root item -->
+        <ClientOnly>
+          <FolderTree
+            :tree="folderTree"
+            :selected-id="currentFolderId"
+            :loading="treeLoading"
+            @select="onFolderSelect"
+            @create="onCreateInFolder"
+            @rename="onRenameFolder"
+            @delete="onDeleteFolder"
+          />
+        </ClientOnly>
+
+      </div>
+
+      <!-- Footer: User info -->
+      <div class="sidebar-footer">
         <div class="user-info" v-if="currentUser">
           <n-avatar :size="32" round>
             {{ currentUser.full_name?.charAt(0) || '?' }}
@@ -87,6 +100,16 @@
             <span class="user-name">{{ currentUser.full_name }}</span>
             <span class="user-email">{{ currentUser.email }}</span>
           </div>
+          <n-button
+            quaternary
+            circle
+            size="small"
+            @click="handleLogout"
+          >
+            <template #icon>
+              <n-icon><Icon icon="mdi:logout" /></n-icon>
+            </template>
+          </n-button>
         </div>
       </div>
     </n-layout-sider>
@@ -151,6 +174,7 @@ import '~/assets/css/search-palette.css'
 
 const authStore = useAuthStore()
 const { currentUser } = storeToRefs(authStore)
+const { logout } = useAuth()
 const {
   loadItems,
   loadFolderTree,
@@ -194,8 +218,19 @@ watch(currentUser, async () => {
 }, { immediate: true })
 
 const router = useRouter()
+const isSettingsActive = computed(() => route.path === '/settings')
+const isAllFilesActive = computed(() => route.path === '/' && !isTrashView.value)
+
+function navigateToRoot() {
+  router.push({ path: '/', query: currentFolderId.value ? { folder: currentFolderId.value } : {} })
+}
+
 function navigateToTrash() {
   router.push({ path: '/', query: { view: 'trash' } })
+}
+
+function navigateToSettings() {
+  router.push({ path: '/settings' })
 }
 
 const showCreateFolder = ref(false)
@@ -297,6 +332,10 @@ async function handleDeleteFolder() {
     message.error(e?.data?.error || 'Không thể xóa')
   }
 }
+
+async function handleLogout() {
+  await logout()
+}
 </script>
 
 <style scoped>
@@ -323,12 +362,12 @@ async function handleDeleteFolder() {
   border-bottom: 1px solid var(--color-border);
 }
 
-.tree-root-item:hover {
+.nav-item:hover {
   background: var(--color-surface-hover);
   color: var(--color-text-primary);
 }
 
-.tree-root-item.active {
+.nav-item.active {
   background: rgba(59, 130, 246, 0.14);
   color: var(--color-primary);
 }
@@ -369,7 +408,7 @@ async function handleDeleteFolder() {
   margin-top: 0.25rem;
 }
 
-.tree-root-item {
+.nav-item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -382,12 +421,12 @@ async function handleDeleteFolder() {
   font-size: var(--font-size-sm);
 }
 
-.tree-root-item:hover {
+.nav-item:hover {
   background: var(--color-surface-hover);
   color: var(--color-text-primary);
 }
 
-.tree-root-item.active {
+.nav-item.active {
   background: var(--color-primary-light);
   color: var(--color-primary);
   box-shadow: inset 3px 0 0 var(--color-primary);
@@ -441,6 +480,7 @@ async function handleDeleteFolder() {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
 }
 
 .user-name {
@@ -481,6 +521,8 @@ async function handleDeleteFolder() {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Mobile Responsive */
