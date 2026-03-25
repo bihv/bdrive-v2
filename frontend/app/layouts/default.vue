@@ -437,7 +437,14 @@ async function handleDeleteFolder() {
 
 .app-main {
   background: var(--color-bg-primary) !important;
-  overflow-y: auto;
+  height: 100% !important;
+}
+
+.app-main :deep(.n-layout-scroll-container) {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
 .mobile-header {
@@ -445,8 +452,10 @@ async function handleDeleteFolder() {
 }
 
 .main-content {
-  padding: 1.5rem 2rem;
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Mobile Responsive */
@@ -478,10 +487,6 @@ async function handleDeleteFolder() {
     align-items: center;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--color-border);
-  }
-
-  .main-content {
-    padding: 1rem;
   }
 
   .sidebar-header {
@@ -521,10 +526,6 @@ async function handleDeleteFolder() {
 }
 
 @media (max-width: 480px) {
-  .main-content {
-    padding: 0.75rem;
-  }
-
   .logo-icon {
     font-size: 1.25rem;
   }

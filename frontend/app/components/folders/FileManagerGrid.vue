@@ -19,7 +19,7 @@
       <div
         v-for="item in displayItems"
         :key="item.id"
-        class="fm-item glass-card"
+        class="fm-item"
         :class="{ 'is-folder': item.is_folder, 'is-trash': isTrashView }"
         @dblclick="!isTrashView && $emit('action', { type: 'open', item })"
         @contextmenu.prevent="isTrashView

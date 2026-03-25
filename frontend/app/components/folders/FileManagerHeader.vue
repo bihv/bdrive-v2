@@ -155,7 +155,8 @@ defineEmits<{
     flex-direction: column;
     align-items: stretch;
     gap: 0.75rem;
-    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0;
   }
 
   .fm-breadcrumb {
@@ -166,10 +167,6 @@ defineEmits<{
   .fm-actions {
     justify-content: flex-start;
     flex-wrap: wrap;
-  }
-
-  .fm-view-switcher {
-    display: none;
   }
 }
 

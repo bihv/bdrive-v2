@@ -319,7 +319,16 @@ watch(actions.showPropertiesModal, (v) => {
 
 <style scoped>
 .file-manager {
-  width: 100%;
-  min-width: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 2rem;
+}
+
+@media (max-width: 768px) {
+  .file-manager {
+    padding: 0.75rem;
+  }
 }
 </style>

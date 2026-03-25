@@ -127,7 +127,6 @@ function onAction(event: {
 
 <style scoped>
 .fm-view {
-  padding: 1rem;
   min-height: 0;
   flex: 1;
   overflow-y: auto;
