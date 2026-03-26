@@ -30,7 +30,7 @@
               'is-trash': isTrashView,
               'highlighted': item.id === highlightedId
             }"
-            @dblclick="!isTrashView && $emit('action', { type: 'open', item })"
+            @click="handleRowClick(item)"
             @contextmenu.prevent="isTrashView
               ? $emit('action', { type: 'trash-context', item, eventX: $event.clientX, eventY: $event.clientY })
               : $emit('action', { type: 'context', item, eventX: $event.clientX, eventY: $event.clientY })"
@@ -118,14 +118,14 @@ import type { Item } from '~/types/folder'
 import { useFolderStore } from '~/stores/folder'
 import { useQuickAccessStore } from '~/stores/quick-access'
 
-defineProps<{
+const props = defineProps<{
   displayItems: Item[]
   displayLoading: boolean
   isTrashView: boolean
   showCreateFolderAction?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'action', event: ListActionEvent): void
 }>()
 
@@ -160,6 +160,11 @@ interface ListActionEvent {
   element?: HTMLElement
   eventX?: number
   eventY?: number
+}
+
+function handleRowClick(item: Item) {
+  if (props.isTrashView) return
+  emit('action', { type: 'open', item })
 }
 
 function formatSize(bytes: number): string {

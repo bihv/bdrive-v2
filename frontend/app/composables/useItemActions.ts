@@ -32,15 +32,12 @@ export function useItemActions(context: ItemActionContext) {
 
   // Computed: context menu options for regular items
   const contextMenuOptions = computed<MenuOption[]>(() => {
-    const opts: MenuOption[] = [
-      { label: 'Properties', key: 'properties' },
-    ]
+    const opts: MenuOption[] = []
     if (contextTarget.value) {
       const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
-      if (item && !item.is_folder) {
-        const type = getPreviewType(item.name)
-        opts.push({ type: 'divider', key: 'd-preview' })
-        if (type === 'unknown') {
+      if (item) {
+        const previewType = item.is_folder ? null : getPreviewType(item.name)
+        if (previewType === 'unknown') {
           opts.push({
             label: 'Open with',
             key: 'open-with',
@@ -52,19 +49,17 @@ export function useItemActions(context: ItemActionContext) {
               { label: '📝 Text Editor', key: 'open-as-text' },
             ],
           })
-        } else {
-          opts.push({ label: 'Open', key: 'preview' })
         }
       }
-      opts.push({ type: 'divider', key: 'd-star' })
+      opts.push({ label: 'Properties', key: 'properties' })
       opts.push({
         label: isStarred?.(item?.id || '') ? 'Remove star' : 'Add star',
         key: 'toggle-star',
       })
+    } else {
+      opts.push({ label: 'Properties', key: 'properties' })
     }
-    opts.push({ type: 'divider', key: 'd0' })
     opts.push({ label: 'Rename', key: 'rename' })
-    opts.push({ type: 'divider', key: 'd1' })
     opts.push({ label: 'Delete', key: 'delete' })
     return opts
   })
