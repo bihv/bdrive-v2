@@ -2,10 +2,10 @@
   <div class="auth-page">
     <div class="login-card animate-fade-in-up">
       <div class="login-header">
-        <span class="login-kicker">Welcome back</span>
+        <span class="login-kicker">Đăng nhập</span>
         <Logo />
-        <h2>Đăng nhập để tiếp tục làm việc</h2>
-        <p class="login-subtitle">Truy cập file, preview và editor trong cùng một workspace.</p>
+        <h2>Đăng nhập 1Drive</h2>
+        <p class="login-subtitle">Tiếp tục làm việc.</p>
       </div>
 
       <LoginForm
@@ -50,9 +50,10 @@ function onLoginError(message: string) {
 .login-header {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.75rem;
   margin-bottom: 2rem;
+  text-align: center;
 }
 
 .login-kicker {
@@ -73,8 +74,28 @@ function onLoginError(message: string) {
 }
 
 @media (max-width: 480px) {
+  .login-card {
+    max-width: none;
+  }
+
   .login-header h2 {
     font-size: 1.5rem;
+    line-height: 1.05;
+  }
+
+  .login-header {
+    gap: 0.45rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .login-kicker,
+  .login-header :deep(.logo-container) {
+    display: none;
+  }
+
+  .login-subtitle {
+    font-size: 0.9rem;
+    line-height: 1.45;
   }
 }
 </style>

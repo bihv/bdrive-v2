@@ -374,4 +374,36 @@ async function handleSubmit() {
 .login-anchor:hover {
   color: var(--color-accent);
 }
+
+@media (max-width: 480px) {
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-label,
+  .login-text,
+  .login-anchor,
+  .terms-group :deep(.n-checkbox),
+  .terms-link {
+    font-size: 0.8125rem;
+  }
+
+  .password-strength {
+    gap: 0.5rem;
+  }
+
+  .strength-label {
+    min-width: 38px;
+  }
+
+  .terms-group {
+    margin-bottom: 1.1rem;
+  }
+
+  .submit-btn {
+    margin-bottom: 1rem;
+    height: 44px !important;
+    font-size: 0.95rem !important;
+  }
+}
 </style>

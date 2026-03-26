@@ -2,10 +2,10 @@
   <div class="auth-page">
     <div class="register-card animate-fade-in-up">
       <div class="register-header">
-        <span class="register-kicker">Get started</span>
+        <span class="register-kicker">Tạo tài khoản</span>
         <Logo />
-        <h2>Tạo tài khoản 1Drive</h2>
-        <p class="register-subtitle">Thiết lập không gian lưu trữ an toàn cho nhóm và tài liệu nội bộ.</p>
+        <h2>Tạo tài khoản</h2>
+        <p class="register-subtitle">Bắt đầu với 1Drive.</p>
       </div>
 
       <RegisterForm
@@ -50,9 +50,10 @@ function onRegisterError(message: string) {
 .register-header {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.75rem;
   margin-bottom: 2rem;
+  text-align: center;
 }
 
 .register-kicker {
@@ -73,8 +74,28 @@ function onRegisterError(message: string) {
 }
 
 @media (max-width: 480px) {
+  .register-card {
+    max-width: none;
+  }
+
   .register-header h2 {
     font-size: 1.5rem;
+    line-height: 1.05;
+  }
+
+  .register-header {
+    gap: 0.45rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .register-kicker,
+  .register-header :deep(.logo-container) {
+    display: none;
+  }
+
+  .register-subtitle {
+    font-size: 0.9rem;
+    line-height: 1.45;
   }
 }
 </style>

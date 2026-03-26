@@ -248,4 +248,29 @@ async function handleSubmit() {
 .register-anchor:hover {
   color: var(--color-accent);
 }
+
+@media (max-width: 480px) {
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-label,
+  .forgot-link,
+  .register-text,
+  .register-anchor {
+    font-size: 0.8125rem;
+  }
+
+  .form-row {
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .submit-btn {
+    margin-bottom: 1rem;
+    height: 44px !important;
+    font-size: 0.95rem !important;
+  }
+}
 </style>

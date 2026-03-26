@@ -6,7 +6,7 @@
       :width="260"
       :collapsed-width="0"
       collapse-mode="width"
-      :show-trigger="isDesktop ? 'arrow-circle' : false"
+      :show-trigger="false"
       :collapsed="sidebarCollapsed"
       @collapse="sidebarCollapsed = true"
       @expand="sidebarCollapsed = false"
@@ -23,96 +23,126 @@
 
       <!-- Folder Tree -->
       <div class="sidebar-content">
-        <div class="sidebar-section-title">
-          <span>Điều hướng</span>
-        </div>
+        <section class="sidebar-group">
+          <div class="sidebar-section-title">
+            <span>Điều hướng</span>
+          </div>
 
-        <div
-          class="nav-item"
-          :class="{ active: isAllFilesActive }"
-          @click="navigateToRoot"
-        >
-          <n-icon size="18"><Icon icon="mdi:home-variant" /></n-icon>
-          <span>Tất cả file</span>
-        </div>
+          <div class="sidebar-section-card">
+            <div
+              class="nav-item"
+              :class="{ active: isAllFilesActive }"
+              @click="navigateToRoot"
+            >
+              <n-icon size="18"><Icon icon="mdi:home-variant" /></n-icon>
+              <span>Tất cả file</span>
+            </div>
 
-        <div
-          class="nav-item"
-          :class="{ active: isSettingsActive }"
-          @click="navigateToSettings"
-        >
-          <n-icon size="18"><Icon icon="mdi:cog-outline" /></n-icon>
-          <span>Settings</span>
-        </div>
+            <div
+              class="nav-item"
+              :class="{ active: isSettingsActive }"
+              @click="navigateToSettings"
+            >
+              <n-icon size="18"><Icon icon="mdi:cog-outline" /></n-icon>
+              <span>Settings</span>
+            </div>
 
-        <div
-          class="trash-item"
-          :class="{ active: isTrashView }"
-          @click="navigateToTrash"
-        >
-          <n-icon size="18"><Icon icon="mdi:trash-can-outline" /></n-icon>
-          <span>Thùng rác</span>
-          <n-badge
-            v-if="trashItems.length > 0"
-            :value="trashItems.length"
-            :max="99"
-            type="error"
-            class="trash-badge"
-          />
-        </div>
+            <div
+              class="trash-item"
+              :class="{ active: isTrashView }"
+              @click="navigateToTrash"
+            >
+              <n-icon size="18"><Icon icon="mdi:trash-can-outline" /></n-icon>
+              <span>Thùng rác</span>
+              <n-badge
+                v-if="trashItems.length > 0"
+                :value="trashItems.length"
+                :max="99"
+                type="error"
+                class="trash-badge"
+              />
+            </div>
+          </div>
+        </section>
 
-        <div class="sidebar-section-title">
-          <span>Thư mục</span>
-          <n-button
-            quaternary
-            circle
-            size="tiny"
-            @click="showCreateFolder = true"
-          >
-            <template #icon>
-              <n-icon><Icon icon="mdi:folder-plus-outline" /></n-icon>
-            </template>
-          </n-button>
-        </div>
+        <section class="sidebar-group">
+          <div class="sidebar-section-title">
+            <span>Thư mục</span>
+          </div>
 
-        <!-- Root item -->
-        <ClientOnly>
-          <FolderTree
-            :tree="folderTree"
-            :selected-id="currentFolderId"
-            :loading="treeLoading"
-            @select="onFolderSelect"
-            @create="onCreateInFolder"
-            @rename="onRenameFolder"
-            @delete="onDeleteFolder"
-          />
-        </ClientOnly>
+          <div class="sidebar-section-card sidebar-tree-card">
+            <ClientOnly>
+              <FolderTree
+                :tree="folderTree"
+                :selected-id="currentFolderId"
+                :loading="treeLoading"
+                @select="onFolderSelect"
+                @create="onCreateInFolder"
+                @rename="onRenameFolder"
+                @delete="onDeleteFolder"
+              />
+            </ClientOnly>
+          </div>
+        </section>
 
       </div>
 
       <!-- Footer: User info -->
       <div class="sidebar-footer">
-        <div class="user-info" v-if="currentUser">
-          <n-avatar :size="32" round>
-            {{ currentUser.full_name?.charAt(0) || '?' }}
-          </n-avatar>
-          <div class="user-details">
-            <span class="user-name">{{ currentUser.full_name }}</span>
-            <span class="user-email">{{ currentUser.email }}</span>
+        <div class="sidebar-footer-card" v-if="currentUser">
+          <div class="user-info">
+            <n-avatar :size="32" round>
+              {{ currentUser.full_name?.charAt(0) || '?' }}
+            </n-avatar>
+            <div class="user-details">
+              <span class="user-name">{{ currentUser.full_name }}</span>
+              <span class="user-email">{{ currentUser.email }}</span>
+            </div>
+            <n-button
+              quaternary
+              circle
+              size="small"
+              @click="handleLogout"
+            >
+              <template #icon>
+                <n-icon><Icon icon="mdi:logout" /></n-icon>
+              </template>
+            </n-button>
           </div>
-          <n-button
-            quaternary
-            circle
-            size="small"
-            @click="handleLogout"
-          >
-            <template #icon>
-              <n-icon><Icon icon="mdi:logout" /></n-icon>
-            </template>
-          </n-button>
+
+          <div class="storage-summary">
+            <div class="storage-copy">
+              <span class="storage-label">Storage</span>
+              <strong>{{ storageUsageText }}</strong>
+            </div>
+            <n-progress
+              type="line"
+              :percentage="storageUsagePercent"
+              :show-indicator="false"
+              :height="6"
+              :border-radius="999"
+              status="success"
+            />
+            <small class="storage-meta">{{ currentUser.role }} · {{ currentUser.is_verified ? 'Đã xác minh' : 'Chưa xác minh' }}</small>
+          </div>
         </div>
       </div>
     </n-layout-sider>
+
+    <button
+      v-if="isDesktop"
+      type="button"
+      class="sidebar-edge-toggle"
+      :class="{ collapsed: sidebarCollapsed }"
+      :aria-label="sidebarCollapsed ? 'Mở sidebar' : 'Thu gọn sidebar'"
+      @click="sidebarCollapsed = !sidebarCollapsed"
+    >
+      <n-icon size="18">
+        <span class="sidebar-edge-toggle-icon" :class="{ collapsed: sidebarCollapsed }">
+          <Icon icon="mdi:chevron-left" />
+        </span>
+      </n-icon>
+    </button>
 
     <!-- Mobile overlay -->
     <div
@@ -249,6 +279,15 @@ const mobileHeaderTitle = computed(() => {
   if (isTrashView.value) return 'Thùng rác'
   return '1Drive'
 })
+const storageUsagePercent = computed(() => {
+  const used = currentUser.value?.storage_used_bytes || 0
+  const quota = currentUser.value?.storage_quota_bytes || 0
+  if (!quota) return 0
+  return Math.min(100, Math.round((used / quota) * 100))
+})
+const storageUsageText = computed(() =>
+  `${formatBytes(currentUser.value?.storage_used_bytes || 0)} / ${formatBytes(currentUser.value?.storage_quota_bytes || 0)}`,
+)
 
 function navigateToRoot() {
   router.push({ path: '/', query: currentFolderId.value ? { folder: currentFolderId.value } : {} })
@@ -365,16 +404,31 @@ async function handleDeleteFolder() {
 async function handleLogout() {
   await logout()
 }
+
+function formatBytes(bytes: number) {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index += 1
+  }
+  return `${value >= 10 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`
+}
 </script>
 
 <style scoped>
 .app-layout {
+  position: relative;
   height: 100vh;
   overflow: hidden;
   background: var(--color-bg-primary);
 }
 
 .app-sidebar {
+  position: relative;
+  overflow: visible !important;
   background: var(--color-bg-secondary) !important;
   border-right: 1px solid var(--color-border) !important;
 }
@@ -387,7 +441,7 @@ async function handleLogout() {
 }
 
 .sidebar-header {
-  padding: 1.25rem 1rem;
+  padding: 1.1rem 1rem 0.9rem;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -421,14 +475,36 @@ async function handleLogout() {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0.75rem 0;
+  padding: 0.85rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.sidebar-section-card,
+.sidebar-footer-card {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.sidebar-tree-card {
+  padding: 0.35rem 0;
 }
 
 .sidebar-section-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 1rem;
+  padding: 0 0.25rem;
   font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-text-muted);
@@ -446,7 +522,7 @@ async function handleLogout() {
   color: var(--color-text-secondary);
   transition: all var(--transition-fast);
   border-radius: var(--radius-sm);
-  margin: 0 0.5rem;
+  margin: 0.3rem;
   font-size: var(--font-size-sm);
 }
 
@@ -470,7 +546,7 @@ async function handleLogout() {
   color: var(--color-text-secondary);
   transition: all var(--transition-fast);
   border-radius: var(--radius-sm);
-  margin: 0 0.5rem;
+  margin: 0.3rem;
   font-size: var(--font-size-sm);
   position: relative;
 }
@@ -492,17 +568,22 @@ async function handleLogout() {
 
 .sidebar-footer {
   margin-top: auto;
-  padding: 0.75rem 0.5rem;
+  padding: 0.75rem;
   border-top: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
+.sidebar-footer-card {
+  padding: 0.8rem;
+}
+
 .user-info {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  margin-bottom: 0.8rem;
 }
 
 .user-details {
@@ -529,9 +610,97 @@ async function handleLogout() {
   text-overflow: ellipsis;
 }
 
+.storage-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.storage-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.storage-label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.storage-copy strong {
+  font-size: var(--font-size-sm);
+}
+
+.storage-meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
 .app-main {
   background: var(--color-bg-primary) !important;
   height: 100% !important;
+}
+
+.sidebar-edge-toggle {
+  position: absolute;
+  top: 50%;
+  left: 244px;
+  transform: translateY(-50%);
+  z-index: 30;
+  width: 32px;
+  height: 56px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 0;
+  border-radius: 0 16px 16px 0;
+  background:
+    linear-gradient(180deg, rgba(36, 39, 49, 0.95), rgba(22, 25, 34, 0.92));
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 10px 30px rgba(3, 7, 18, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  transition:
+    left var(--transition-base),
+    color var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.sidebar-edge-toggle:hover {
+  color: var(--color-text-primary);
+  background:
+    linear-gradient(180deg, rgba(48, 54, 68, 0.98), rgba(27, 31, 42, 0.96));
+  box-shadow:
+    0 12px 34px rgba(3, 7, 18, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-edge-toggle:active {
+  transform: translateY(-50%) scale(0.98);
+}
+
+.sidebar-edge-toggle.collapsed {
+  left: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 16px 16px 0;
+}
+
+.sidebar-edge-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease;
+}
+
+.sidebar-edge-toggle-icon.collapsed {
+  transform: rotate(180deg);
 }
 
 .app-main :deep(.n-layout-scroll-container) {
@@ -561,6 +730,10 @@ async function handleLogout() {
     z-index: 1000;
     height: 100vh !important;
     transition: transform var(--transition-base);
+  }
+
+  .sidebar-edge-toggle {
+    display: none;
   }
 
   .app-sidebar.is-mobile {
@@ -645,7 +818,7 @@ async function handleLogout() {
   }
 
   .sidebar-content {
-    padding: 0.5rem 0;
+    padding: 0.6rem;
   }
 
   .sidebar-section-title,
@@ -654,17 +827,42 @@ async function handleLogout() {
   }
 
   .sidebar-footer {
-    padding: 0.5rem 0.75rem;
+    padding: 0.6rem;
+  }
+
+  .sidebar-footer-card {
+    padding: 0.7rem;
   }
 
   .user-info {
-    flex-direction: column;
-    text-align: center;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
   }
 
   .user-details {
-    align-items: center;
+    align-items: flex-start;
+  }
+
+  .storage-copy {
+    gap: 0.5rem;
+  }
+
+  .user-name {
+    font-size: 0.9rem;
+  }
+
+  .user-email {
+    max-width: 140px;
+  }
+
+  .storage-summary {
+    gap: 0.35rem;
+  }
+
+  .storage-label,
+  .storage-meta {
+    font-size: 11px;
   }
 }
 
