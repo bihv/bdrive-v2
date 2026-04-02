@@ -3,7 +3,7 @@
     :show="show"
     preset="card"
     :title="modalTitle"
-    style="width: 420px; max-width: 90vw;"
+    style="width: 720px; max-width: 96vw;"
     :mask-closable="true"
     @update:show="emit('update:show', $event)"
   >
@@ -60,6 +60,8 @@
             <span class="properties-row-value">{{ item.child_count }} mục</span>
           </div>
         </div>
+
+        <PublicLinkManager v-if="itemId" :item-id="itemId" />
       </template>
 
       <div v-else class="properties-empty">
@@ -72,6 +74,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import type { Item } from '~/types/folder'
+import PublicLinkManager from '~/components/folders/PublicLinkManager.vue'
 
 const props = defineProps<{
   show: boolean
@@ -87,7 +90,7 @@ const item = ref<Item | null>(null)
 const loading = ref(false)
 
 const modalTitle = computed(() => {
-  return props.itemId ? 'Thông tin' : 'Thông tin'
+  return props.itemId ? 'Thông tin & chia sẻ' : 'Thông tin'
 })
 
 watch(

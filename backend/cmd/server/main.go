@@ -44,7 +44,15 @@ func main() {
 	db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`)
 
 	// Auto-migrate models
-	if err := db.AutoMigrate(&model.User{}, &model.RefreshToken{}, &model.Item{}, &model.ItemStar{}, &model.ItemActivity{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.User{},
+		&model.RefreshToken{},
+		&model.Item{},
+		&model.ItemStar{},
+		&model.ItemActivity{},
+		&model.PublicLink{},
+		&model.PublicLinkAuditLog{},
+	); err != nil {
 		logger.Fatal("Failed to run auto-migration", zap.Error(err))
 	}
 
@@ -77,10 +85,12 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	itemRepo := repository.NewItemRepository(db, logger)
+	publicLinkRepo := repository.NewPublicLinkRepository(db)
 
 	// Initialize services
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, cfg, logger)
 	itemService := service.NewItemService(itemRepo, b2Client, logger)
+	publicLinkService := service.NewPublicLinkService(publicLinkRepo, itemRepo, b2Client, cfg.JWT.AccessSecret, logger)
 
 	// Initialize validator
 	v := validator.New()
@@ -88,6 +98,7 @@ func main() {
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, v, cfg, logger)
 	itemHandler := handler.NewItemHandler(itemService, b2Client, v, logger)
+	publicLinkHandler := handler.NewPublicLinkHandler(publicLinkService, v, logger)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -105,7 +116,7 @@ func main() {
 	app.Use(middleware.SetupLogger(logger))
 
 	// Setup routes
-	router.Setup(app, authHandler, itemHandler, cfg.JWT.AccessSecret, b2Client)
+	router.Setup(app, authHandler, itemHandler, publicLinkHandler, cfg.JWT.AccessSecret, b2Client)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

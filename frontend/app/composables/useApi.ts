@@ -1,5 +1,6 @@
 import type { ApiResponse, ApiError } from '~/types/auth'
 import type { Item, RecentItem, RestoreItemRequest, SearchResult } from '~/types/folder'
+import type { CreatePublicLinkRequest, PublicLink, UpdatePublicLinkRequest } from '~/types/public-link'
 import { useAuthStore } from '~/stores/auth'
 
 export function useApi() {
@@ -195,6 +196,33 @@ export function useApi() {
         })
     }
 
+    async function listItemPublicLinks(itemId: string): Promise<PublicLink[]> {
+        return apiFetch<PublicLink[]>(`/api/v1/items/${itemId}/public-links`, {
+            method: 'GET',
+        })
+    }
+
+    async function createItemPublicLink(itemId: string, body: CreatePublicLinkRequest): Promise<PublicLink> {
+        return apiFetch<PublicLink>(`/api/v1/items/${itemId}/public-links`, {
+            method: 'POST',
+            body: JSON.stringify(body),
+        })
+    }
+
+    async function updatePublicLink(id: string, body: UpdatePublicLinkRequest): Promise<PublicLink> {
+        return apiFetch<PublicLink>(`/api/v1/public-links/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(body),
+        })
+    }
+
+    async function revokePublicLink(id: string): Promise<PublicLink> {
+        return apiFetch<PublicLink>(`/api/v1/public-links/${id}/revoke`, {
+            method: 'POST',
+            body: JSON.stringify({}),
+        })
+    }
+
     return {
         apiFetch,
         post,
@@ -212,5 +240,9 @@ export function useApi() {
         starItem,
         unstarItem,
         trackItemActivity,
+        listItemPublicLinks,
+        createItemPublicLink,
+        updatePublicLink,
+        revokePublicLink,
     }
 }

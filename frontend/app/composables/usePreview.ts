@@ -36,18 +36,40 @@ const TEXT_EXTENSIONS = [
     'dockerfile', 'makefile',
 ]
 
-// Extension → PreviewType lookup
-const EXTENSION_TYPE_MAP = new Map<string, PreviewType>(
-    [
-        ...IMAGE_EXTENSIONS.map(e => [e, 'image'] as const),
-        ...VIDEO_EXTENSIONS.map(e => [e, 'video'] as const),
-        ...AUDIO_EXTENSIONS.map(e => [e, 'audio'] as const),
-        ...PDF_EXTENSIONS.map(e => [e, 'pdf'] as const),
-        ...OFFICE_EXTENSIONS.map(e => [e, 'office'] as const),
-        ...MARKDOWN_EXTENSIONS.map(e => [e, 'markdown'] as const),
-        ...TEXT_EXTENSIONS.map(e => [e, 'text'] as const),
-    ]
-)
+type MediaKind = 'video' | 'audio'
+
+const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown'])
+const TEXT_MIME_TYPES = new Set([
+    'application/json',
+    'application/xml',
+    'application/javascript',
+    'application/typescript',
+    'application/x-yaml',
+    'application/yaml',
+    'application/toml',
+    'application/x-sh',
+])
+const MEDIA_EXTENSION_MIME_CANDIDATES: Record<MediaKind, Record<string, string[]>> = {
+    video: {
+        mp4: ['video/mp4'],
+        webm: ['video/webm'],
+        ogg: ['video/ogg'],
+        m4v: ['video/mp4'],
+        mov: ['video/quicktime'],
+    },
+    audio: {
+        mp3: ['audio/mpeg'],
+        wav: ['audio/wav', 'audio/x-wav'],
+        ogg: ['audio/ogg'],
+        aac: ['audio/aac'],
+        m4a: ['audio/mp4', 'audio/x-m4a'],
+        opus: ['audio/opus', 'audio/ogg'],
+    },
+}
+const FALLBACK_BROWSER_MEDIA_EXTENSIONS: Record<MediaKind, Set<string>> = {
+    video: new Set(['mp4', 'webm', 'ogg', 'm4v', 'mov']),
+    audio: new Set(['mp3', 'wav', 'ogg', 'aac', 'm4a', 'opus']),
+}
 
 // Monaco Editor language mapping (extension -> Monaco language ID)
 const MONACO_LANGUAGE_MAP: Record<string, string> = {
@@ -109,13 +131,62 @@ export function usePreview() {
         return OFFICE_EXTENSIONS.includes(ext)
     }
 
+    function normalizeMimeType(mimeType?: string | null): string {
+        return mimeType?.split(';')[0]?.trim()?.toLowerCase() || ''
+    }
+
+    function isBrowserPreviewableMedia(kind: MediaKind, fileName?: string, mimeType?: string | null): boolean {
+        const ext = fileName ? getFileExtension(fileName) : ''
+        const normalizedMimeType = normalizeMimeType(mimeType)
+        const fallbackSupported = FALLBACK_BROWSER_MEDIA_EXTENSIONS[kind].has(ext)
+
+        if (!import.meta.client) {
+            return fallbackSupported
+        }
+
+        const mediaElement = document.createElement(kind)
+        const mimeCandidates = [
+            normalizedMimeType,
+            ...(MEDIA_EXTENSION_MIME_CANDIDATES[kind][ext] || []),
+        ].filter(Boolean)
+
+        if (mimeCandidates.length === 0) {
+            return fallbackSupported
+        }
+
+        return mimeCandidates.some(candidate => {
+            const support = mediaElement.canPlayType(candidate)
+            return support === 'probably' || support === 'maybe'
+        })
+    }
+
+    function isTextMimeType(mimeType?: string | null): boolean {
+        const normalizedMimeType = normalizeMimeType(mimeType)
+        return normalizedMimeType.startsWith('text/') || TEXT_MIME_TYPES.has(normalizedMimeType)
+    }
+
     /**
      * Determine the preview type based on file extension
      */
-    function getPreviewType(fileName?: string): PreviewType {
-        if (!fileName) return 'unknown'
-        const ext = getFileExtension(fileName)
-        return EXTENSION_TYPE_MAP.get(ext) || 'unknown'
+    function getPreviewType(fileName?: string, mimeType?: string | null): PreviewType {
+        const ext = fileName ? getFileExtension(fileName) : ''
+        const normalizedMimeType = normalizeMimeType(mimeType)
+
+        if (OFFICE_EXTENSIONS.includes(ext)) return 'office'
+        if (PDF_EXTENSIONS.includes(ext) || normalizedMimeType === 'application/pdf') return 'pdf'
+        if (MARKDOWN_EXTENSIONS.includes(ext) || MARKDOWN_MIME_TYPES.has(normalizedMimeType)) return 'markdown'
+        if (TEXT_EXTENSIONS.includes(ext) || isTextMimeType(normalizedMimeType)) return 'text'
+        if (IMAGE_EXTENSIONS.includes(ext) || normalizedMimeType.startsWith('image/')) return 'image'
+
+        if (VIDEO_EXTENSIONS.includes(ext) || normalizedMimeType.startsWith('video/')) {
+            return isBrowserPreviewableMedia('video', fileName, normalizedMimeType) ? 'video' : 'unknown'
+        }
+
+        if (AUDIO_EXTENSIONS.includes(ext) || normalizedMimeType.startsWith('audio/')) {
+            return isBrowserPreviewableMedia('audio', fileName, normalizedMimeType) ? 'audio' : 'unknown'
+        }
+
+        return 'unknown'
     }
 
     /**

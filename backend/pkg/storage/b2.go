@@ -39,6 +39,15 @@ type UploadResult struct {
 	VersionID  *string
 }
 
+type FileStreamResult struct {
+	Body          io.ReadCloser
+	ContentType   string
+	ContentLength int64
+	ContentRange  *string
+	ETag          *string
+	LastModified  *time.Time
+}
+
 // B2Client wraps the S3-compatible client for Backblaze B2.
 type B2Client struct {
 	client     *s3.Client
@@ -245,6 +254,40 @@ func (b *B2Client) DeleteFile(ctx context.Context, key string) error {
 		return fmt.Errorf("failed to delete file: %w", err)
 	}
 	return nil
+}
+
+func (b *B2Client) GetFileStream(ctx context.Context, key string, rangeHeader string) (*FileStreamResult, error) {
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(b.bucketName),
+		Key:    aws.String(key),
+	}
+	if rangeHeader != "" {
+		input.Range = aws.String(rangeHeader)
+	}
+
+	result, err := b.client.GetObject(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file stream: %w", err)
+	}
+
+	contentType := "application/octet-stream"
+	if result.ContentType != nil && *result.ContentType != "" {
+		contentType = *result.ContentType
+	}
+
+	contentLength := int64(-1)
+	if result.ContentLength != nil {
+		contentLength = *result.ContentLength
+	}
+
+	return &FileStreamResult{
+		Body:          result.Body,
+		ContentType:   contentType,
+		ContentLength: contentLength,
+		ContentRange:  result.ContentRange,
+		ETag:          result.ETag,
+		LastModified:  result.LastModified,
+	}, nil
 }
 
 // GetFileURL returns a pre-signed URL for downloading a file

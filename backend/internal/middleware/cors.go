@@ -12,7 +12,7 @@ func SetupCORS(cfg *config.CORSConfig) fiber.Handler {
 	return cors.New(cors.Config{
 		AllowOrigins:     cfg.Origins,
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-CSRF-Token",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-CSRF-Token,X-Public-Link-Session",
 		AllowCredentials: true,
 		MaxAge:           86400,
 	})

@@ -18,6 +18,13 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+type PublicLinkClaims struct {
+	LinkID         string `json:"link_id"`
+	SessionVersion int    `json:"session_version"`
+	ActorType      string `json:"actor_type"`
+	jwt.RegisteredClaims
+}
+
 // GenerateAccessToken creates a new access token.
 func GenerateAccessToken(userID, email, role, secret string, expiry time.Duration) (string, error) {
 	claims := Claims{
@@ -55,6 +62,44 @@ func ValidateAccessToken(tokenString, secret string) (*Claims, error) {
 	}
 
 	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+
+	return claims, nil
+}
+
+func GeneratePublicLinkSession(linkID string, sessionVersion int, secret string, expiry time.Duration) (string, error) {
+	now := time.Now()
+	claims := PublicLinkClaims{
+		LinkID:         linkID,
+		SessionVersion: sessionVersion,
+		ActorType:      "anonymous",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(expiry)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ID:        uuid.NewString(),
+			Issuer:    "1drive-public-link",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
+
+func ValidatePublicLinkSession(tokenString, secret string) (*PublicLinkClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &PublicLinkClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+
+	claims, ok := token.Claims.(*PublicLinkClaims)
 	if !ok || !token.Valid {
 		return nil, fmt.Errorf("invalid token claims")
 	}

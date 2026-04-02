@@ -368,7 +368,7 @@ async function initMarkdownEditor() {
 function openLightbox() {
   if (!previewData.value?.url) return
 
-  const imageItems = previewContext.value.filter(item => getPreviewType(item.name) === 'image')
+  const imageItems = previewContext.value.filter(item => getPreviewType(item.name, item.mime_type) === 'image')
   
   if (imageItems.length === 0) {
     imageItems.push({ id: previewItemId.value!, name: previewData.value.name })
@@ -467,7 +467,7 @@ watch(previewItemId, async (newId) => {
   try {
     const data = await getPreviewData(newId)
     previewData.value = data
-    previewType.value = previewForceType.value || getPreviewType(data.name)
+    previewType.value = previewForceType.value || getPreviewType(data.name, data.mime_type)
     previewExtension.value = getFileExtension(data.name)
     monacoLanguage.value = getMonacoLanguage(data.name)
 

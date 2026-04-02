@@ -36,7 +36,7 @@ export function useItemActions(context: ItemActionContext) {
     if (contextTarget.value) {
       const item = displayItems.value.find(i => i.id === contextTarget.value?.id)
       if (item) {
-        const previewType = item.is_folder ? null : getPreviewType(item.name)
+        const previewType = item.is_folder ? null : getPreviewType(item.name, item.mime_type)
         if (previewType === 'unknown') {
           opts.push({
             label: 'Open with',

@@ -12,7 +12,7 @@ import (
 )
 
 // Setup configures all application routes.
-func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handler.ItemHandler, accessSecret string, b2Client *storage.B2Client) {
+func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handler.ItemHandler, publicLinkHandler *handler.PublicLinkHandler, accessSecret string, b2Client *storage.B2Client) {
 	// API v1
 	api := app.Group("/api/v1")
 
@@ -45,11 +45,27 @@ func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handle
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
 
+	// Public link routes
+	publicLinks := api.Group("/public-links")
+	publicLinks.Get("/:token", publicLinkHandler.GetPublicLink)
+	publicLinks.Get("/:token/items", publicLinkHandler.ListSharedItems)
+	publicLinks.Get("/:token/stream", publicLinkHandler.StreamSharedItem)
+
+	publicLinkPassword := publicLinks.Group("/:token")
+	publicLinkPassword.Use(middleware.SetupPublicLinkPasswordRateLimiter())
+	publicLinkPassword.Post("/authenticate", publicLinkHandler.AuthenticatePublicLink)
+
 	// Protected auth routes
 	authProtected := auth.Group("")
 	authProtected.Use(middleware.AuthMiddleware(accessSecret))
 	authProtected.Post("/logout", authHandler.Logout)
 	authProtected.Get("/me", authHandler.GetMe)
+
+	// Protected public-link management routes
+	publicLinkManagement := api.Group("/public-links")
+	publicLinkManagement.Use(middleware.AuthMiddleware(accessSecret))
+	publicLinkManagement.Put("/:id", publicLinkHandler.UpdatePublicLink)
+	publicLinkManagement.Post("/:id/revoke", publicLinkHandler.RevokePublicLink)
 
 	// Item routes (protected)
 	items := api.Group("/items")
@@ -64,6 +80,8 @@ func Setup(app *fiber.App, authHandler *handler.AuthHandler, itemHandler *handle
 	items.Post("/upload-part-url", itemHandler.GetUploadPartURL)    // Get pre-signed URL for part
 	items.Post("/complete-upload", itemHandler.CompleteLargeUpload) // Complete multipart upload
 	items.Get("/", itemHandler.ListItems)
+	items.Get("/:id/public-links", publicLinkHandler.ListItemPublicLinks)
+	items.Post("/:id/public-links", publicLinkHandler.CreatePublicLink)
 	items.Get("/:id", itemHandler.GetItem)
 	items.Get("/:id/preview", itemHandler.GetPreview)
 	items.Post("/:id/star", itemHandler.AddStar)

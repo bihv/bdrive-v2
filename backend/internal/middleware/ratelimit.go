@@ -42,3 +42,20 @@ func SetupAuthRateLimiter() fiber.Handler {
 		},
 	})
 }
+
+func SetupPublicLinkPasswordRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        5,
+		Expiration: 15 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP() + ":" + c.Params("token")
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"error":   "Too many password attempts, please try again later",
+				"code":    "PUBLIC_LINK_RATE_LIMITED",
+			})
+		},
+	})
+}
