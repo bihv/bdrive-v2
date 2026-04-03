@@ -1,5 +1,5 @@
 <template>
-  <div class="office-page">
+  <div :class="['office-page', { 'office-page--shared': isPublicShare }]">
     <!-- OnlyOffice Editor Container -->
     <div class="office-content">
       <n-spin v-if="loading" size="large" class="office-loading">
@@ -26,13 +26,13 @@
 </template>
 
 <script setup lang="ts">
-import { Icon } from '@iconify/vue'
 import type { PreviewData } from '~/composables/usePreview'
+import { usePublicLinkApi } from '~/composables/usePublicLinkApi'
 import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({
   layout: false,
-  middleware: 'auth',
+  middleware: 'office-access',
 })
 
 const route = useRoute()
@@ -40,6 +40,7 @@ const router = useRouter()
 const config = useRuntimeConfig()
 const message = useMessage()
 const authStore = useAuthStore()
+const publicApi = usePublicLinkApi()
 const { getPreviewData, getOfficeDocumentType, getFileExtension, getOnlyOfficeUrl } = usePreview()
 
 const loading = ref(true)
@@ -47,25 +48,17 @@ const error = ref<string | null>(null)
 const previewData = ref<PreviewData | null>(null)
 let docEditor: any = null
 
-const fileIcon = computed(() => {
-  if (!previewData.value) return 'mdi:file-document-outline'
-  const ext = getFileExtension(previewData.value.name)
-  if (['doc', 'docx'].includes(ext)) return 'mdi:file-word-box'
-  if (['xls', 'xlsx'].includes(ext)) return 'mdi:file-excel-box'
-  if (['ppt', 'pptx'].includes(ext)) return 'mdi:file-powerpoint-box'
-  return 'mdi:file-document-outline'
-})
-
-const iconColor = computed(() => {
-  const ext = previewData.value ? getFileExtension(previewData.value.name) : ''
-  if (['doc', 'docx'].includes(ext)) return '#2b579a'
-  if (['xls', 'xlsx'].includes(ext)) return '#217346'
-  if (['ppt', 'pptx'].includes(ext)) return '#d24726'
-  return 'var(--color-primary)'
-})
+const itemId = computed(() => getSingleQueryValue(route.query.id))
+const shareToken = computed(() => getSingleQueryValue(route.query.share_token))
+const shareSession = computed(() => getSingleQueryValue(route.query.session))
+const shareName = computed(() => getSingleQueryValue(route.query.name))
+const isPublicShare = computed(() => Boolean(shareToken.value))
 
 useHead({
-  title: computed(() => previewData.value?.name ? `${previewData.value.name} - 1Drive` : '1Drive - Office'),
+  title: computed(() => {
+    if (previewData.value?.name) return `${previewData.value.name} - 1Drive`
+    return isPublicShare.value ? '1Drive Shared Office' : '1Drive - Office'
+  }),
 })
 
 function goBack() {
@@ -94,35 +87,52 @@ function loadScript(src: string): Promise<void> {
   })
 }
 
-function initEditor(data: PreviewData, onlyofficeUrl: string) {
+function getSingleQueryValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return String(value[0] || '')
+  }
+  return String(value || '')
+}
+
+function normalizeDockerReachableUrl(url: string): string {
+  if (url.includes('localhost') || url.includes('127.0.0.1')) {
+    return url.replace('localhost', 'host.docker.internal').replace('127.0.0.1', 'host.docker.internal')
+  }
+  return url
+}
+
+function buildInternalCallbackUrl() {
+  const apiBase = config.public.apiBase
+  return normalizeDockerReachableUrl(
+    `${apiBase}/api/v1/onlyoffice/callback?id=${itemId.value}&userId=${authStore.user?.id}`,
+  )
+}
+
+function initEditor(data: PreviewData, options: { isPublicShare: boolean; shareToken?: string }) {
   const ext = getFileExtension(data.name)
   const documentType = getOfficeDocumentType(data.name)
-  const apiBase = config.public.apiBase
-
-  // Fix callback URL for Docker (OnlyOffice inside Docker needs to reach host machine)
-  let callbackUrlStr = `${apiBase}/api/v1/onlyoffice/callback?id=${route.query.id}&userId=${authStore.user?.id}`
-  if (callbackUrlStr.includes('localhost') || callbackUrlStr.includes('127.0.0.1')) {
-    callbackUrlStr = callbackUrlStr.replace('localhost', 'host.docker.internal').replace('127.0.0.1', 'host.docker.internal')
-  }
+  const documentKey = options.isPublicShare
+    ? `${options.shareToken || 'public'}_${itemId.value}_${Date.now()}`
+    : `${itemId.value}_${new Date(data.updated_at).getTime()}`
 
   const editorConfig = {
     document: {
       fileType: ext,
-      key: `${route.query.id}_${new Date(data.updated_at).getTime()}`,
+      key: documentKey,
       title: data.name,
       url: data.url,
       permissions: {
-        edit: true,
+        edit: !options.isPublicShare,
         download: true,
-      }
+      },
     },
     documentType: documentType,
     editorConfig: {
-      mode: 'edit',
-      callbackUrl: callbackUrlStr,
+      mode: options.isPublicShare ? 'view' : 'edit',
+      callbackUrl: options.isPublicShare ? undefined : buildInternalCallbackUrl(),
       lang: 'en',
       customization: {
-        forcesave: true,
+        forcesave: !options.isPublicShare,
         chat: false,
         comments: false,
         compactHeader: false,
@@ -131,9 +141,9 @@ function initEditor(data: PreviewData, onlyofficeUrl: string) {
         uiTheme: 'theme-dark',
       },
       user: {
-        id: authStore.user?.id || 'anonymous',
-        name: authStore.user?.full_name || 'Anonymous',
-      }
+        id: options.isPublicShare ? 'anonymous' : (authStore.user?.id || 'anonymous'),
+        name: options.isPublicShare ? 'Anonymous viewer' : (authStore.user?.full_name || 'Anonymous'),
+      },
     },
     type: 'desktop',
     height: '100%',
@@ -149,27 +159,57 @@ function initEditor(data: PreviewData, onlyofficeUrl: string) {
   }
 }
 
+async function loadInternalPreviewData() {
+  const data = await getPreviewData(itemId.value)
+  previewData.value = data
+  return {
+    data,
+    options: { isPublicShare: false },
+  }
+}
+
+async function loadPublicPreviewData() {
+  const detail = await publicApi.getPublicLink(shareToken.value, shareSession.value || undefined)
+  const name = shareName.value || (detail.item?.id === itemId.value ? detail.item.name : `shared-file-${itemId.value}`)
+  const updatedAt = detail.item?.id === itemId.value ? detail.item.updated_at : new Date().toISOString()
+  const url = normalizeDockerReachableUrl(
+    publicApi.buildStreamUrl(shareToken.value, itemId.value, shareSession.value || undefined, false),
+  )
+
+  const data: PreviewData = {
+    url,
+    mime_type: detail.item?.id === itemId.value ? detail.item.mime_type || '' : '',
+    name,
+    size: detail.item?.id === itemId.value ? detail.item.size : 0,
+    updated_at: updatedAt,
+  }
+
+  previewData.value = data
+
+  return {
+    data,
+    options: { isPublicShare: true, shareToken: shareToken.value },
+  }
+}
+
 onMounted(async () => {
-  const itemId = route.query.id as string
-  if (!itemId) {
+  if (!itemId.value) {
     error.value = 'Thiếu ID file'
     loading.value = false
     return
   }
 
   try {
-    // Step 1: Get preview data
-    const data = await getPreviewData(itemId)
-    previewData.value = data
+    const officeUrl = getOnlyOfficeUrl()
+    const previewSource = isPublicShare.value
+      ? await loadPublicPreviewData()
+      : await loadInternalPreviewData()
 
-    // Step 2: Load OnlyOffice JS API
-    const onlyofficeUrl = getOnlyOfficeUrl()
-    await loadScript(`${onlyofficeUrl}/web-apps/apps/api/documents/api.js`)
+    await loadScript(`${officeUrl}/web-apps/apps/api/documents/api.js`)
 
-    // Step 3: Initialize editor
     loading.value = false
     await nextTick()
-    initEditor(data, onlyofficeUrl)
+    initEditor(previewSource.data, previewSource.options)
   } catch (e: any) {
     error.value = e?.data?.error || e?.message || 'Không thể tải trình soạn thảo Office'
     message.error(error.value!)
@@ -193,6 +233,10 @@ onUnmounted(() => {
   margin: 0;
   padding: 0;
   overflow: hidden;
+}
+
+.office-page--shared {
+  background: linear-gradient(180deg, #0a1220 0%, #060b13 100%);
 }
 
 .office-content {

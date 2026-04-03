@@ -412,13 +412,14 @@ function downloadRoot() {
 
 function openOfficeViewer(item: PublicSharedItem) {
   const params = new URLSearchParams({
-    item: item.id,
+    id: item.id,
+    share_token: token.value,
     name: item.name,
   })
   if (sessionToken.value) {
     params.set('session', sessionToken.value)
   }
-  window.open(`/share/${token.value}/office?${params.toString()}`, '_blank')
+  window.open(`/office?${params.toString()}`, '_blank')
 }
 
 function clearSession() {
